@@ -1,0 +1,16 @@
+# Runtime artifacts reserved for the event build
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Never commit private voice or victim data
+*.wav
+*.mp3
+*.m4a
+private-evidence/
+
