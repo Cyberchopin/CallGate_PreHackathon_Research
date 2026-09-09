@@ -2,7 +2,11 @@
 
 > A zero-trust voice firewall for moments when urgency, secrecy, and a familiar voice are being used to manufacture authority.
 
-**Pre-hackathon research repository — no runnable product implementation is included.**
+**This branch contains the CallGate v2 phase-1 development baseline.** Original research is preserved at commit `16c469ae78f22f06df757595b8b36edd9359086e`.
+
+Start with [v2 setup and API guide](docs/V2_PHASE1.md), [repository audit and open-source comparison](docs/V2_RESEARCH.md), and [build disclosure](BUILD_LOG.md).
+
+The architecture below is the target design. Phase 1 implements transcript processing, heuristic risk events, conversation state, score timeline, advisory Guardian output, REST/WebSocket interfaces and an AssemblyAI adapter. It does **not** yet implement independent verification, signed receipts or protected-tool enforcement.
 
 ## Why this exists
 
@@ -85,7 +89,7 @@ flowchart TD
 
 ## Intended event strategy
 
-The research, diagrams, and specifications in this repository may be published before the event. The runnable application, integrations, models, and UI must be implemented during the hackathon on a clearly marked event branch. The boundary is documented so judges can distinguish preparation from judged work.
+The original plan reserved implementation for LA Hacks. The user subsequently requested a reusable v2 baseline now, prioritizing AssemblyAI and AI Infra. This branch records that change; all existing work must be disclosed to each later event, whose own rules determine eligibility. See BUILD_LOG.md.
 
 ## Technical references
 

@@ -1,5 +1,7 @@
 # Pre-Hackathon Boundary
 
+> Historical plan, superseded on the v2 branch by the user's September 8, 2026 request to begin implementation now. See `BUILD_LOG.md`. The research-only claim below applies to original commit `16c469ae78f22f06df757595b8b36edd9359086e`, not this branch. Do not reuse the old submission template without updating its claims.
+
 **Status:** research and planning only  
 **Prepared:** September 2026  
 **Target event:** LA Hacks AI Hackathon, October 17–18, 2026
