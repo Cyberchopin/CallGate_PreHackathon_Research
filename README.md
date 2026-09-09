@@ -8,7 +8,7 @@ Start with [v2 setup and API guide](docs/V2_PHASE1.md), [repository audit and op
 
 For the current local prototype, start with [运行与进度导航](START_HERE.md), [数学逻辑框架](docs/MATHEMATICAL_FRAMEWORK.md) and [本地验证报告](scambench/LOCAL_RESULTS.md).
 
-The architecture below is the target design. The local prototype implements transcript processing, heuristic risk events, conversation state, score timeline, advisory Guardian output, REST/WebSocket interfaces and an AssemblyAI adapter. It also provides a NetworkX evidence projection and separately tested signed confirmation, verification credentials and a simulated gate with optional SQLite replay protection. Real human identity enrollment, trusted confirmation transport, signed audit receipts and real protected-tool enforcement remain unimplemented.
+The architecture below is the target design. The local prototype implements transcript processing, heuristic risk events, conversation state, score timeline, advisory Guardian output, REST/WebSocket interfaces and an AssemblyAI adapter. It also provides a NetworkX evidence projection, signed minimal decision receipts, and separately tested signed confirmation, verification credentials and a simulated gate with optional SQLite replay protection. Real human identity enrollment, trusted confirmation transport, receipt key lifecycle and storage, and real protected-tool enforcement remain unimplemented.
 
 ## Why this exists
 

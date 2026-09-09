@@ -8,6 +8,6 @@ Pending confirmations are process-local and bounded to 1,000 requests. Restart i
 
 This coordinator does not grant policy approval or lift the Guardian's latched states. The demo gate still requires trusted policy approval and confirmation inputs. Do not accept those booleans from unauthenticated HTTP JSON. The existing demo issuer helper remains test-only; do not expose it as an alternative public issuance route.
 
-Eight tests cover signed approval through the persistent demo gate, request replay, wrong signer, signed scope changes, denial, expiration, coordinator restart, denial-bit tampering and concurrent confirmation (exactly one credential issued). Full local suite: 78 passed. GitHub workflow now installs verification dependencies so these tests are not silently skipped there; remote CI has not been run in this step.
+Eight tests cover signed approval through the persistent demo gate, request replay, wrong signer, signed scope changes, denial, expiration, coordinator restart, denial-bit tampering and concurrent confirmation (exactly one credential issued). Full local suite: 87 passed. GitHub workflow installs verification dependencies so these tests are not silently skipped there; remote CI has not been run in this step.
 
 Next: implement an authenticated reviewer transport with a separate trusted display of the exact requested action, explicit approve/deny controls, and key enrollment/revocation. Select that identity mechanism before claiming independent human verification is complete.

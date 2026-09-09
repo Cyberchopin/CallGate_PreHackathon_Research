@@ -10,6 +10,7 @@ coverage/
 .venv-*/
 __pycache__/
 .pytest_cache/
+.test-tmp/
 *.egg-info/
 *.log
 
