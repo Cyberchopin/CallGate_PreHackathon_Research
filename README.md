@@ -6,7 +6,9 @@
 
 Start with [v2 setup and API guide](docs/V2_PHASE1.md), [repository audit and open-source comparison](docs/V2_RESEARCH.md), and [build disclosure](BUILD_LOG.md).
 
-The architecture below is the target design. Phase 1 implements transcript processing, heuristic risk events, conversation state, score timeline, advisory Guardian output, REST/WebSocket interfaces and an AssemblyAI adapter. It does **not** yet implement independent verification, signed receipts or protected-tool enforcement.
+For the current local prototype, start with [运行与进度导航](START_HERE.md), [数学逻辑框架](docs/MATHEMATICAL_FRAMEWORK.md) and [本地验证报告](scambench/LOCAL_RESULTS.md).
+
+The architecture below is the target design. The local prototype implements transcript processing, heuristic risk events, conversation state, score timeline, advisory Guardian output, REST/WebSocket interfaces and an AssemblyAI adapter. It also provides a NetworkX evidence projection and separately tested signed confirmation, verification credentials and a simulated gate with optional SQLite replay protection. Real human identity enrollment, trusted confirmation transport, signed audit receipts and real protected-tool enforcement remain unimplemented.
 
 ## Why this exists
 
@@ -18,7 +20,7 @@ CallGate starts from a stronger security premise:
 
 > **Voice is evidence, not identity. Emotion is context, not authorization.**
 
-It does not promise to identify every cloned voice. Instead, it enforces a narrower and testable guarantee:
+The target architecture has a narrower security objective; the current advisory audio demo does not yet enforce this end to end:
 
 > **Unverified speech cannot obtain a high-impact capability.**
 

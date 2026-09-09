@@ -62,7 +62,7 @@ class RuleExtractor:
                     continue
                 events.append(RiskEvent(event_id=f"{segment.segment_id}:{segment.revision}:{kind}:{match.start()}",
                     segment_id=segment.segment_id, revision=segment.revision, kind=kind,
-                    start=match.start(), end=match.end(), confidence=0.7))
+                    start=match.start(), end=match.end(), confidence=0.7, extractor=EXTRACTOR_VERSION))
         return events
 
 

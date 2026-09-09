@@ -18,4 +18,8 @@ __pycache__/
 *.mp3
 *.m4a
 private-evidence/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 

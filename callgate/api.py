@@ -58,14 +58,18 @@ def health():
 
 
 @app.post("/v1/replay")
-def replay(body: Replay):
+def replay(body: Replay, include_graph: bool = False):
     engine = Conversation()
     try:
         for segment in body.segments:
             engine.ingest(segment)
     except ValueError:
         raise HTTPException(422, "Invalid evidence or transcript revision")
-    return engine.snapshot()
+    result = engine.snapshot()
+    if include_graph:
+        from .evidence_graph import evidence_graph
+        result["evidence_graph"] = evidence_graph(engine)
+    return result
 
 
 @app.websocket("/v1/stream/transcript")
