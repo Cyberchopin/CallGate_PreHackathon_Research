@@ -14,6 +14,7 @@ class Transcript(StrictModel):
     end_ms: int = Field(ge=0)
     final: bool = False
     role: Literal["caller", "recipient", "unknown"] = "unknown"
+    provider_speaker: str | None = Field(default=None, max_length=16, pattern=r"^[A-Za-z0-9_-]+$")
     language: str = Field(default="en", max_length=16)
 
     @model_validator(mode="after")

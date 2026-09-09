@@ -9,7 +9,7 @@ def evidence_graph(conversation):
         graph.add_node(source, type="segment", segment_id=sid,
                        revision=segment.revision, final=segment.final,
                        role=segment.role, start_ms=segment.start_ms,
-                       end_ms=segment.end_ms)
+                       end_ms=segment.end_ms, provider_speaker=segment.provider_speaker)
         for index, event in enumerate(conversation.events.get(sid, [])):
             # Namespace and ordinal prevent custom extractor IDs merging nodes.
             node = f"event:{sid}:{segment.revision}:{index}"
