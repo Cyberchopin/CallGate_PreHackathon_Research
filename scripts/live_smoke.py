@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import json
+import hashlib
 import time
 import wave
 from datetime import datetime, timezone
@@ -15,7 +16,7 @@ async def run(audio_path, output_path):
     key = next(line.split("=", 1)[1].strip() for line in env_path.read_text(encoding="utf-8-sig").splitlines()
                if line.startswith("ASSEMBLYAI_API_KEY="))
     engine = Conversation()
-    updates = []
+    finalized = []
     started = time.perf_counter()
 
     async def chunks():
@@ -32,18 +33,26 @@ async def run(audio_path, output_path):
 
     async def capture(segment):
         result = engine.ingest(segment)
-        updates.append({"received_ms": round((time.perf_counter()-started)*1000),
-                        "transcript": segment.model_dump(), "risk": result})
         if segment.final:
-            print(json.dumps({"transcript": segment.text, "state": result["state"],
+            finalized.append({"received_ms":round((time.perf_counter()-started)*1000),
+                "segment_id":segment.segment_id, "revision":segment.revision,
+                "start_ms":segment.start_ms, "end_ms":segment.end_ms,
+                "role":segment.role, "provider_speaker":segment.provider_speaker,
+                "transcript_sha256":hashlib.sha256(segment.text.encode("utf-8")).hexdigest(),
+                "event_kinds":sorted({e.kind for e in engine.events.get(segment.segment_id, [])}),
+                "state":result["state"], "score":result["score"]})
+            print(json.dumps({"segment_id":segment.segment_id, "state":result["state"],
                               "score": result["score"], "guardian": result["guardian"]["action"]}), flush=True)
 
     await asyncio.wait_for(stream_pcm(chunks(), capture, api_key=key), timeout=90)
-    if not any(item["transcript"]["final"] for item in updates):
+    if not finalized:
         raise RuntimeError("No finalized transcript received")
     report = {"timestamp_utc": datetime.now(timezone.utc).isoformat(), "audio": str(audio_path.name),
-              "test_type": "live_provider_synthetic_audio", "updates": updates,
-              "final": engine.snapshot(), "wall_seconds": round(time.perf_counter()-started, 2),
+              "test_type": "live_provider_synthetic_audio", "finalized_turns": finalized,
+              "final": {"state":engine.state, "score":engine.snapshot()["score"],
+                        "event_kinds":sorted({e.kind for events in engine.events.values() for e in events}),
+                        "protected_actions_allowed":False},
+              "wall_seconds": round(time.perf_counter()-started, 2),
               "limitations": "Synthetic clean speech smoke test; not held-out accuracy or microphone/telephony verification."}
     output_path.write_text(json.dumps(report, indent=2)+"\n", encoding="utf-8")
     print("REPORT_SAVED", flush=True)

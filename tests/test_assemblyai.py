@@ -61,9 +61,11 @@ def test_speaker_labels_are_relative_until_trusted_mapping_exists():
 def test_unknown_and_mixed_speakers_are_not_mapped():
     base = dict(type="Turn", turn_order=1, transcript="Hello", end_of_turn=True, words=[])
     assert AssemblyTurns({"A":"caller"}).normalize(dict(base,speaker_label="UNKNOWN")).provider_speaker is None
+    assert AssemblyTurns({"A":"caller"}).normalize(dict(base,speaker_label="PENDING")).provider_speaker is None
     words = [{"start":0,"end":100,"word_is_final":True,"speaker":"A"},
              {"start":101,"end":200,"word_is_final":True,"speaker":"B"}]
     mixed = AssemblyTurns({"A":"caller","B":"recipient"}).normalize(dict(base,speaker_label="A",words=words))
     assert mixed.role == "unknown" and mixed.provider_speaker is None
     with pytest.raises(ValueError): AssemblyTurns({"A":"verified"})
     with pytest.raises(ValueError): AssemblyTurns().normalize(dict(base,speaker_label="../A"))
+    assert AssemblyTurns().normalize(dict(base, transcript="  ")) is None

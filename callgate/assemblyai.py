@@ -21,13 +21,15 @@ class AssemblyTurns:
             raise ValueError("invalid turn order")
         words = message.get("words") or []
         text = message["transcript"]
+        if not isinstance(text, str) or not text.strip():
+            return None
         final = message.get("end_of_turn", False)
         label = message.get("speaker_label")
-        if label == "UNKNOWN":
+        if label in {"UNKNOWN", "PENDING"}:
             label = None
         if label is not None and (not isinstance(label, str) or not label or len(label) > 16 or not label.replace("_","").replace("-","").isalnum()):
             raise ValueError("invalid speaker label")
-        word_labels = {w.get("speaker") for w in words if w.get("word_is_final") and w.get("speaker") not in {None,"UNKNOWN"}}
+        word_labels = {w.get("speaker") for w in words if w.get("word_is_final") and w.get("speaker") not in {None,"UNKNOWN","PENDING"}}
         # A dominant turn label cannot safely represent two speakers in one turn.
         mixed = len(word_labels) > 1
         role = "unknown" if mixed or label is None else self.speaker_roles.get(label, "unknown")
