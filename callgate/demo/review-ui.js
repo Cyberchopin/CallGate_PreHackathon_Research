@@ -99,6 +99,12 @@ if (role === 'participant') {
           ? '请先明确允许处理本次测试内容。' : message.error === 'assemblyai_not_configured'
           ? '语音服务尚未配置；可使用文本备用输入。' : '语音服务连接失败；可使用文本备用输入。'); return; }
         if (message.type === 'completed') { finishAudio('语音测试完成。'); return; }
+        if (message.metrics) {
+          const m=message.metrics;
+          const cost=m.estimated_asr_cost_usd === null ? '未配置 ASR 单价' : 'ASR 估算 $'+m.estimated_asr_cost_usd;
+          el('metrics').textContent='已接收音频 '+(m.audio_received_ms/1000).toFixed(2)+' 秒；本地风险引擎 '+
+            m.risk_engine_ms+' ms；语音结束到提醒代理值 '+m.end_of_speech_to_alert_proxy_ms+' ms；'+cost+'。';
+        }
         if (message.risk) showRisk(message.risk);
       };
       s.ws.onclose=()=>{ if(audio===s) finishAudio('语音连接已关闭。'); };

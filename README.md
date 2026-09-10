@@ -41,6 +41,8 @@ Each role has a different bearer capability. Approval requires both the reviewer
 
 Keys and pending state are ephemeral; restart invalidates old entries. This launcher uses an in-memory replay gate and one session per startup. Tests exercise authenticated audio ingress, shared workflow state, real loopback HTTP across both processes, repeat approval rejection, and reviewer unavailability. Live provider accuracy and latency are not established by those mocked integration tests.
 
+During a live run, the participant page shows received audio duration, local risk-engine time, and an observed end-of-speech-to-alert proxy. The proxy combines provider timestamps with the local server clock and is not an SLA measurement. Cost is shown only when `CALLGATE_ASR_USD_PER_HOUR` is set from the operator's current provider terms; otherwise it reports that the rate is unconfigured. The estimate covers ASR only. This path has no LLM, TTS, or SIP charge.
+
 ## Reuse and project contribution
 
 AssemblyAI supplies streaming transcription; Silero and Pipecat integrations provide optional voice processing components; NetworkX, cryptography and SQLite supply graph, signature and persistence primitives. CallGate adds revision-aware evidence handling, cross-turn action/secrecy rules, advisory policy, and tests of scoped credentials and replay rejection.

@@ -7,7 +7,9 @@ import asyncio
 import hashlib
 import hmac
 import json
+import math
 import os
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -90,6 +92,18 @@ def bearer(token):
     return require
 
 
+def configured_asr_rate():
+    """Optional user-supplied USD/hour rate; no vendor price is assumed."""
+    raw = os.environ.get('CALLGATE_ASR_USD_PER_HOUR')
+    if raw is None:
+        return None
+    try:
+        rate = float(raw)
+    except ValueError:
+        return None
+    return rate if math.isfinite(rate) and 0 <= rate <= 10_000 else None
+
+
 def create_broker_app(workflow, participant_token, reviewer_token, *, origin='http://127.0.0.1:8766'):
     if not participant_token or not reviewer_token or participant_token == reviewer_token:
         raise ValueError('distinct role credentials required')
@@ -132,13 +146,18 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                 await ws.send_json({'error': 'assemblyai_not_configured'})
                 await ws.close(code=1011)
                 return
+            started = time.perf_counter()
+            audio_bytes = 0
+            asr_rate = configured_asr_rate()
 
             async def chunks():
+                nonlocal audio_bytes
                 while True:
                     item = await asyncio.wait_for(ws.receive(), 30)
                     if item['type'] == 'websocket.disconnect':
                         raise WebSocketDisconnect()
                     if item.get('bytes') is not None:
+                        audio_bytes += len(item['bytes'])
                         yield item['bytes']
                     elif item.get('text') == '{"type":"stop"}':
                         return
@@ -146,11 +165,33 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                         raise ValueError('expected PCM bytes or stop')
 
             async def on_segment(segment):
+                risk_started = time.perf_counter()
                 result = workflow.ingest(segment)
-                await ws.send_json({'transcript': segment.model_dump(), 'risk': result})
+                risk_ms = (time.perf_counter() - risk_started) * 1000
+                elapsed_ms = (time.perf_counter() - started) * 1000
+                audio_ms = audio_bytes / 32
+                metrics = {
+                    'audio_received_ms': round(audio_ms, 1),
+                    'server_elapsed_ms': round(elapsed_ms, 1),
+                    'risk_engine_ms': round(risk_ms, 3),
+                    # Provider word timestamps and this server clock are only an
+                    # observed demo proxy, not a telephony latency SLA.
+                    'end_of_speech_to_alert_proxy_ms': round(max(0, elapsed_ms-segment.end_ms), 1),
+                    'asr_rate_usd_per_hour': asr_rate,
+                    'estimated_asr_cost_usd': (None if asr_rate is None else
+                        round((audio_ms/3_600_000)*asr_rate, 8)),
+                    'cost_scope': 'asr_only_configured_rate',
+                }
+                await ws.send_json({'transcript': segment.model_dump(), 'risk': result,
+                                    'metrics': metrics})
 
             await asyncio.wait_for(stream_pcm(chunks(), on_segment), timeout=1800)
-            await ws.send_json({'type': 'completed'})
+            await ws.send_json({'type': 'completed', 'session_metrics': {
+                'audio_received_ms': round(audio_bytes / 32, 1),
+                'estimated_asr_cost_usd': (None if asr_rate is None else
+                    round((audio_bytes / 32 / 3_600_000) * asr_rate, 8)),
+                'cost_scope': 'asr_only_configured_rate',
+            }})
             await ws.close()
         except WebSocketDisconnect:
             pass

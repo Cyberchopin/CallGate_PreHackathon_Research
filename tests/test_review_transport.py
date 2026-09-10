@@ -68,6 +68,7 @@ def request_action(demo, *, destination="demo-wallet", amount_cents=280000):
 
 def test_audio_ingress_shares_the_confirmation_workflow(demo, monkeypatch):
     monkeypatch.setenv('ASSEMBLYAI_API_KEY', 'test-key')
+    monkeypatch.setenv('CALLGATE_ASR_USD_PER_HOUR', '0.12')
 
     async def provider(chunks, on_segment):
         received = []
@@ -83,8 +84,14 @@ def test_audio_ingress_shares_the_confirmation_workflow(demo, monkeypatch):
         ws.send_json({'type': 'authenticate', 'token': PARTICIPANT_TOKEN})
         ws.send_bytes(b'\0' * 3200)
         ws.send_text('{"type":"stop"}')
-        assert ws.receive_json()['risk']['state'] == 'CHALLENGED'
-        assert ws.receive_json()['type'] == 'completed'
+        update = ws.receive_json()
+        assert update['risk']['state'] == 'CHALLENGED'
+        assert update['metrics']['audio_received_ms'] == 100.0
+        assert update['metrics']['risk_engine_ms'] >= 0
+        assert update['metrics']['estimated_asr_cost_usd'] == 0.00000333
+        completed = ws.receive_json()
+        assert completed['type'] == 'completed'
+        assert completed['session_metrics']['cost_scope'] == 'asr_only_configured_rate'
     bundle = demo.broker.post('/api/request', json={
         'destination': 'demo-wallet', 'amount_cents': 100,
     }, headers=bearer(PARTICIPANT_TOKEN)).json()
