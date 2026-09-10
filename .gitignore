@@ -19,6 +19,7 @@ __pycache__/
 *.mp3
 *.m4a
 private-evidence/
+scambench/heldout/private/
 *.sqlite3
 *.sqlite3-journal
 *.sqlite3-wal

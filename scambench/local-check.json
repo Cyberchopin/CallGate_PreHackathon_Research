@@ -1,13 +1,14 @@
 {
-  "generated_at": "2026-09-10T01:36:58.604522+00:00",
+  "generated_at": "2026-09-10T01:41:35.797999+00:00",
   "scope": "local developer tests and synthetic demo; not real-world fraud accuracy",
   "python": "3.12.14",
   "source_sha256": {
     "callgate/__init__.py": "83808c5aff17ff118e0602f42d870d67d3bf377e68b1ff8fb34d2405943187cc",
     "callgate/api.py": "8eaa4659ba285578ac5e25e294f2f0878a69478b878d64624610d840d79f05b1",
     "callgate/assemblyai.py": "dea0ee85f0ea66d52d0c5189896cc4866be8acfe78995245783dfd4ce53d4977",
-    "callgate/bench.py": "e316ec0dd71b34b197353dfc1bacd1f37885167f61c94f833846f6cca185d59c",
+    "callgate/bench.py": "e7b326502ee521735e1fa0de4f80112ee8abbff85d081609566129fb1a87c4f8",
     "callgate/confirmation.py": "d9d0e252ba5db0d42a016e1816e16408834e9f304b0e76eb83e61a1e311b3eff",
+    "callgate/dataset.py": "5b8a51351cba6b7dbae6287ec219370c591385f31b252e31695e33c83c62b25e",
     "callgate/engine.py": "70c08d788c3e8232aafee2da7ff05d2ea25d460f6f71350b050b96fdf7ae1006",
     "callgate/evidence_graph.py": "48e53fd902a199cbcc30f720fe328d06d78adc2674e37fc2342f4d0c3b96fea6",
     "callgate/integrations/__init__.py": "b315a42bf7f5bb331d96fa817c05723552023324a567b7374adb935c6bd618ba",
@@ -19,6 +20,7 @@
     "callgate/verification.py": "dc0ad6d76055412dd9b5d5cba0ec27e63a2122b551b0a4101f11909651924b3b",
     "pyproject.toml": "011b96d0e2b4cdfd46669f7698cace96b3b61ad55c194c571737d02d65fe0d19",
     "scripts/check_local.py": "745f8c5e24347095bb3e308a32f32b12c26eacebe843d9f200c3c383b3f9cd87",
+    "scripts/check_scambench_split.py": "44740d47936c3abe778c28e2f90eaa5db737c3970a0c8115ee0a29701148a689",
     "scripts/configure_key.py": "0267511b79294b756beac304817d60189e0baea8a7921fda077da44233b3d394",
     "scripts/fork_upstreams.py": "b68e58652da7483e026aba0470aef8673953a73080109ed279243a98da5db62e",
     "scripts/live_smoke.py": "72cb5ac6cd7bfaac7371485fe3eb6a549e28effead2068228e8b4f3b7dbba3b0",
@@ -29,6 +31,7 @@
     "tests/test_assemblyai.py": "b5daa128d942b76ba3fc4d7b63f7b063cbd01d76b0943a926b1e057db924f51c",
     "tests/test_bench.py": "cbecc43790e1c10334f614183ed13e7b578542a37dceccb59fd2c92de76e2d8c",
     "tests/test_confirmation.py": "92baae1b215b7bec8e0a1671a5b87434da962220cfade590eca76ba30f5cda92",
+    "tests/test_dataset.py": "93d732ec76e318d78cb063a0f356fc76dc8e25bea6f594cfa7c2a1233d11efd1",
     "tests/test_engine.py": "6fd560d54332e0ee710f9d920e5f5af9bfecdd7d677d427f1481fff5b6adb862",
     "tests/test_evidence_graph.py": "0ec97fd50e0b580b1423e4186f2dda5c775e49e8d324519f80aafa4254ff4c2d",
     "tests/test_integrations.py": "196837412c590faae432f0ebca9ac2adbcf7df21878ca74171ec17b5f24cdc74",
@@ -161,7 +164,7 @@
       }
     },
     "state_passes": 25,
-    "engine_p95_ms": 0.11699999981829023,
+    "engine_p95_ms": 0.11200000017197453,
     "rows": [
       {
         "id": "benign-chat",
@@ -517,7 +520,7 @@
   },
   "tests": {
     "exit_code": 0,
-    "tests": 87,
+    "tests": 90,
     "failures": 0,
     "errors": 0,
     "skipped": 0

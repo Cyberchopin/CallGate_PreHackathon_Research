@@ -9,6 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 from .models import Transcript
 from .engine import Conversation, EXTRACTOR_VERSION
+from .dataset import merge_blind_labels, read_jsonl
 
 
 def ratio(numerator, denominator):
@@ -26,9 +27,10 @@ def wilson(successes, total, z=1.96):
     return [max(0, center - margin), min(1, center + margin)]
 
 
-def evaluate(path):
+def evaluate(path, labels_path=None):
     raw = Path(path).read_bytes()
-    cases = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
+    bound_bytes = raw + (b"\0" + Path(labels_path).read_bytes() if labels_path else b"")
+    cases = merge_blind_labels(path, labels_path) if labels_path else read_jsonl(path)
     if not cases or len({c["id"] for c in cases}) != len(cases):
         raise ValueError("benchmark must contain unique cases")
     rows, latencies = [], []
@@ -77,7 +79,7 @@ def evaluate(path):
             "alerts": sum(r["state"] != "UNVERIFIED" for r in members),
             "false_interventions": sum(r["false_intervention"] for r in members),
         }
-    return dict(dataset_sha256=hashlib.sha256(raw).hexdigest(), cases=len(rows),
+    return dict(dataset_sha256=hashlib.sha256(bound_bytes).hexdigest(), cases=len(rows),
         corpus="synthetic-dev-smoke-v2", limitations="Same-author development cases; Wilson intervals describe only this small corpus; no held-out accuracy or audio latency claim.",
         extractor=EXTRACTOR_VERSION, policy="v2-phase1", python=platform.python_version(), platform=platform.platform(),
         event_precision=ratio(event_tp, event_tp+event_fp),
@@ -101,7 +103,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="scambench/scenarios.jsonl")
     parser.add_argument("--output", default="scambench/results.json")
+    parser.add_argument("--labels", help="private JSON labels for a blind input JSONL")
     args = parser.parse_args()
-    result = evaluate(args.dataset)
+    result = evaluate(args.dataset, args.labels)
     Path(args.output).write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
     print(json.dumps({k:v for k,v in result.items() if k != "rows"}, indent=2))
