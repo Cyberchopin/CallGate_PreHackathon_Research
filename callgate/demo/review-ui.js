@@ -50,6 +50,8 @@ if (role === 'participant') {
   };
   const finishAudio = message => {
     const s = audio; if (!s) return;
+    clearTimeout(s.limitTimer);
+    clearTimeout(s.drainTimer);
     closeAudio(s); s.ws?.close(); audio = null;
     el('start-audio').disabled = false; el('stop-audio').disabled = true;
     el('audio-status').textContent = message;
@@ -67,32 +69,55 @@ if (role === 'participant') {
   const refreshMetrics = async () => {
     const m=await api('/api/metrics/summary');
     if (!m.sessions) { el('metrics-summary').textContent='本次服务启动后尚无完整测试。'; return; }
-    const pct=(100*m.failure_rate).toFixed(1)+'%';
+    const pct=m.failure_rate === null ? '暂无可用分母' : (100*m.failure_rate).toFixed(1)+'%';
     const latency=m.alert_samples ? '提醒代理值 P50 '+m.alert_proxy_p50_ms.toFixed(1)+' ms，P95 '+
       m.alert_proxy_p95_ms.toFixed(1)+' ms' : '尚无风险提醒样本';
-    el('metrics-summary').textContent='本次启动：'+m.sessions+' 次，完成 '+m.completed+'，失败 '+m.failed+
-      '，失败率 '+pct+'；'+latency+'。';
+    el('metrics-summary').textContent='最近 '+m.sessions+' 次，完成 '+m.completed+'，失败 '+m.failed+
+      '，取消 '+m.cancelled+'，断开 '+m.disconnected+'；失败率 '+pct+'（分母 '+m.failure_denominator+
+      '）；'+latency+'（有效样本 '+m.alert_samples+'）。';
   };
   action('refresh-metrics', refreshMetrics);
+  const download = (name, data) => {
+    const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
+    const link=document.createElement('a'); link.href=url; link.download=name;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+  action('export-metrics', async () => download('callgate-measurements.json', await api('/api/metrics/export')));
+  action('export-receipt', async () => download('callgate-receipt.json', await api('/api/receipt', {})));
+  action('inspect-evidence', async () => {
+    const view=await api('/api/evidence');
+    el('evidence-summary').textContent='当前来源图：'+view.graph.nodes.length+' 个节点、'+view.graph.edges.length+
+      ' 条关系。计分项：'+(view.contributions.map(c=>c.kind+' '+c.weight).join(' + ') || '无')+
+      '；总分 '+view.score+'（上限 100，非概率）。当前状态 '+view.state+
+      '；锁定状态可能源自之前的证据。';
+  });
   action('consent', async () => {
     await api('/api/processing-consent', {granted:true});
     el('consent-status').textContent = '本次会话已允许处理测试内容。';
     el('status').textContent = '可以提交虚构或已同意的测试台词。';
   });
   action('decline', async () => {
-    if (audio) finishAudio('处理同意已撤回，麦克风已关闭。');
-    await api('/api/processing-consent', {granted:false});
+    const previous=audio;
+    if (previous) closeAudio(previous);
+    try { await api('/api/processing-consent', {granted:false}); }
+    finally { if (previous && audio===previous) finishAudio('麦克风已关闭。'); }
     el('consent-status').textContent = '处理已停止，本次风险证据和待核验操作已清除。';
     el('challenge').textContent = '';
     el('risk').textContent = '尚未分析';
+    el('live-transcript').textContent='已清除实时转录。';
+    el('evidence-summary').textContent='当前证据已清除。';
     el('status').textContent = '没有待确认请求，未执行操作。';
   });
   action('new-session', async () => {
-    if (audio) finishAudio('本场测试已结束，麦克风已关闭。');
-    await api('/api/session/reset', {});
+    const previous=audio;
+    if (previous) closeAudio(previous);
+    try { await api('/api/session/reset', {}); }
+    finally { if (previous && audio===previous) finishAudio('麦克风已关闭。'); }
     el('consent-status').textContent='新测试尚未取得处理同意。';
     el('challenge').textContent=''; el('risk').textContent='尚未分析';
     el('live-transcript').textContent='尚无实时转录。';
+    el('evidence-summary').textContent='新会话尚无证据。';
     el('policy-explanation').textContent='请重新取得同意后开始新的独立测试。';
     el('status').textContent='新会话已创建；旧证据、挑战和结果均已清除。';
   });
@@ -107,6 +132,9 @@ if (role === 'participant') {
     el('live-transcript').textContent='等待语音服务返回转录…';
     el('audio-status').textContent = '正在请求麦克风权限…';
     try {
+      const status=await api('/api/status');
+      if (audio !== s) return;
+      if (!status.processing_allowed) { finishAudio('请先明确允许处理本次测试内容。'); return; }
       s.stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,
         echoCancellation:true,noiseSuppression:true},video:false});
       if (audio !== s) { closeAudio(s); return; }
@@ -119,7 +147,9 @@ if (role === 'participant') {
         const timer=setTimeout(()=>reject(new Error('timeout')),10000);
         s.ws.onopen=()=>{clearTimeout(timer);s.ws.send(JSON.stringify({type:'authenticate',token}));resolve();};
         s.ws.onerror=()=>{clearTimeout(timer);reject(new Error('connect'));};
+        s.ws.onclose=()=>{clearTimeout(timer);reject(new Error('closed'));};
       });
+      if (audio !== s) { closeAudio(s); s.ws.close(); return; }
       s.ws.onmessage = ({data}) => {
         if (audio !== s) return;
         const message=JSON.parse(data);
@@ -132,7 +162,8 @@ if (role === 'participant') {
           const m=message.metrics;
           const cost=m.estimated_asr_cost_usd === null ? '未配置 ASR 单价' : 'ASR 估算 $'+m.estimated_asr_cost_usd;
           el('metrics').textContent='已接收音频 '+(m.audio_received_ms/1000).toFixed(2)+' 秒；本地风险引擎 '+
-            m.risk_engine_ms+' ms；语音结束到提醒代理值 '+m.end_of_speech_to_alert_proxy_ms+' ms；'+cost+'。';
+            m.risk_engine_ms+' ms；提醒代理值 '+(m.end_of_speech_to_alert_proxy_ms === null ?
+            '暂无有效时间戳' : m.end_of_speech_to_alert_proxy_ms+' ms')+'；'+cost+'。';
         }
         if (message.transcript) {
           s.turns.set(message.transcript.segment_id, message.transcript);
@@ -148,21 +179,28 @@ if (role === 'participant') {
       s.source=s.context.createMediaStreamSource(s.stream);
       s.node=new AudioWorkletNode(s.context,'pcm-recorder');
       s.node.port.onmessage=({data})=>{
+        if (audio !== s || s.stopping) return;
         if(data.level!==undefined) el('level').value=data.level;
-        if(data.pcm && s.ws.readyState===WebSocket.OPEN) s.ws.send(data.pcm);
+        if(data.pcm && s.ws.readyState===WebSocket.OPEN) {
+          if (s.ws.bufferedAmount > 64000) { finishAudio('发送拥堵，麦克风已关闭。'); return; }
+          s.ws.send(data.pcm);
+        }
       };
       s.source.connect(s.node); s.node.connect(s.context.destination);
       el('stop-audio').disabled=false; el('audio-status').textContent='正在处理语音；说完后点击停止。';
+      s.limitTimer=setTimeout(()=>{if(audio===s) el('stop-audio').click();},60000);
     } catch (_) { if (audio === s) finishAudio('无法启动麦克风；请允许权限或使用文本备用输入。'); }
   };
   el('stop-audio').onclick = () => {
     const s=audio; if(!s) return;
+    s.stopping=true; clearTimeout(s.limitTimer);
     s.stream?.getTracks().forEach(track=>track.stop());
     if(s.ws?.readyState===WebSocket.OPEN) s.ws.send('{"type":"stop"}');
     closeAudio(s);
     el('stop-audio').disabled=true; el('audio-status').textContent='正在等待最后的转录…';
-    setTimeout(()=>{if(audio===s) finishAudio('语音测试已停止。');},10000);
+    s.drainTimer=setTimeout(()=>{if(audio===s) finishAudio('最后转录等待超时，已关闭麦克风。');},15000);
   };
+  window.addEventListener('pagehide', ()=>{if(audio) finishAudio('页面已关闭。');});
   action('request', async () => {
     const result = await api('/api/request', {destination:el('destination').value, amount_cents:Number(el('amount').value)});
     el('challenge').textContent = '一次性挑战码：' + result.out_of_band_challenge + '。请通过演示之外的第二条渠道告诉核验者。';

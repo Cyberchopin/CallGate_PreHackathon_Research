@@ -27,3 +27,25 @@ def test_empty_and_percentile_summary_without_content_fields():
 def test_capacity_is_bounded(capacity):
     with pytest.raises(ValueError):
         LiveMetrics(capacity)
+
+
+def test_cancellation_does_not_inflate_failures_and_failed_alerts_do_not_skew_latency():
+    metrics = LiveMetrics()
+    for outcome, delay in [('cancelled', 1), ('disconnected', 2), ('failed', 3), ('completed', 900)]:
+        metrics.record(outcome=outcome, audio_ms=1000, first_alert_proxy_ms=delay, risk_engine_ms=.1)
+    summary = metrics.summary()
+    assert summary['failure_denominator'] == 2
+    assert summary['failure_rate'] == .5
+    assert summary['cancelled'] == summary['disconnected'] == 1
+    assert summary['alert_samples'] == 1 and summary['alert_proxy_p95_ms'] == 900
+    exported = metrics.export()
+    exported['samples'][0]['outcome'] = 'failed'
+    assert metrics.summary()['cancelled'] == 1
+
+
+@pytest.mark.parametrize('value', [float('nan'), float('inf'), -1, True, 'secret'])
+def test_bad_measurements_are_rejected_without_storing(value):
+    metrics = LiveMetrics()
+    with pytest.raises(ValueError):
+        metrics.record(outcome='completed', audio_ms=value, first_alert_proxy_ms=None, risk_engine_ms=None)
+    assert metrics.summary()['sessions'] == 0

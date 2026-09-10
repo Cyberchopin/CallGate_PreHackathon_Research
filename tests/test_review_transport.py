@@ -97,7 +97,8 @@ def test_audio_ingress_shares_the_confirmation_workflow(demo, monkeypatch):
     summary = demo.broker.get('/api/metrics/summary',
                               headers=bearer(PARTICIPANT_TOKEN)).json()
     assert summary['sessions'] == 1 and summary['completed'] == 1
-    assert summary['failed'] == 0 and summary['alert_samples'] == 1
+    # Mock supplies 100ms of PCM but claims end_ms=1000; this is not valid latency evidence.
+    assert summary['failed'] == 0 and summary['alert_samples'] == 0
     bundle = demo.broker.post('/api/request', json={
         'destination': 'demo-wallet', 'amount_cents': 100,
     }, headers=bearer(PARTICIPANT_TOKEN)).json()
@@ -129,11 +130,22 @@ def test_server_stops_idle_provider_without_browser_cooperation(demo, monkeypatc
         'Origin': BROKER_ORIGIN, 'Host': '127.0.0.1:8766'}) as ws:
         ws.send_json({'type':'authenticate', 'token':PARTICIPANT_TOKEN})
         assert started.wait(2)
+        blocked = demo.broker.post('/api/request', json={
+            'destination':'demo-wallet', 'amount_cents':100}, headers=bearer(PARTICIPANT_TOKEN))
+        assert blocked.status_code == 409
+        assert blocked.json()['detail'] == 'finish audio before requesting confirmation'
+        with demo.broker.websocket_connect('/api/audio', headers={
+            'Origin': BROKER_ORIGIN, 'Host': '127.0.0.1:8766'}) as second:
+            second.send_json({'type':'authenticate', 'token':PARTICIPANT_TOKEN})
+            assert second.receive_json()['error'] == 'audio_already_active'
         response = demo.broker.post(route, json=body, headers=bearer(PARTICIPANT_TOKEN))
         assert response.status_code == 200
         assert stopped.wait(2)
         assert ws.receive_json()['error'] == 'processing_stopped'
     assert demo.workflow.status()['processing_allowed'] is False
+    summary = demo.broker.get('/api/metrics/summary', headers=bearer(PARTICIPANT_TOKEN)).json()
+    assert summary['cancelled'] == 1
+    assert summary['failed'] == 0 and summary['failure_rate'] is None
 
 
 def test_second_audio_connection_gets_a_fresh_segment_namespace(demo, monkeypatch):

@@ -4,7 +4,9 @@ import json
 import secrets
 import threading
 
-from .engine import Conversation
+from .engine import Conversation, WEIGHTS
+from .evidence_graph import evidence_graph
+from .receipt import issue_receipt, current_evidence
 
 
 class DemoWorkflow:
@@ -72,6 +74,25 @@ class DemoWorkflow:
             if self._processing_consent != 'GRANTED':
                 raise ValueError('processing consent required')
             return self._generation
+
+    def evidence_view(self):
+        """Snapshot current provenance and deduplicated rule contributions."""
+        with self._lock:
+            snapshot = self._conversation.snapshot()
+            kinds = sorted({row['kind'] for row in current_evidence(self._conversation)})
+            return {'schema_version': 'callgate-evidence-v1',
+                    'graph': evidence_graph(self._conversation),
+                    'contributions': [{'kind': k, 'weight': WEIGHTS[k]} for k in kinds],
+                    'score': snapshot['score'], 'state': snapshot['state'],
+                    'score_kind': 'heuristic_not_probability',
+                    'uncertainty': snapshot['uncertainty'],
+                    'formula': 'min(100, sum(weight of each distinct final risk category))'}
+
+    def decision_receipt(self, signing_key):
+        with self._lock:
+            if self._processing_consent != 'GRANTED' or not self._conversation.segments:
+                raise ValueError('current consented evidence required')
+            return issue_receipt(self._conversation, signing_key, session_id=self._session)
 
     def ingest(self, transcript, *, generation=None):
         with self._lock:

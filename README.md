@@ -26,7 +26,7 @@ These are expected baseline behaviors, not proof of scam detection accuracy. Rec
 - Events reference transcript segments and revisions. Corrections replace current evidence.
 - Scores are heuristic reference values, not fraud probabilities or verified identities.
 - The four implemented audio states are `UNVERIFIED`, `CHALLENGED`, `COOLING_OFF`, and `BLOCKED`. All provide advice; `BLOCKED` means a warning against sharing sensitive information, not an external action block.
-- NetworkX projects current evidence. Separate test components provide Ed25519 confirmation/receipt signatures and a simulated gate with SQLite replay protection. They are not connected to a trusted human confirmation flow in the microphone demo.
+- NetworkX projects current evidence in the connected demo. The participant can inspect deduplicated rule contributions and download an Ed25519-signed risk receipt. SQLite replay protection remains a separately tested primitive; the demo uses an in-memory gate.
 
 ## Try the connected local protocol
 
@@ -43,7 +43,9 @@ Keys and pending state are ephemeral; restart invalidates old entries. This laun
 
 During a live run, the participant page shows received audio duration, local risk-engine time, and an observed end-of-speech-to-alert proxy. The proxy combines provider timestamps with the local server clock and is not an SLA measurement. Cost is shown only when `CALLGATE_ASR_USD_PER_HOUR` is set from the operator's current provider terms; otherwise it reports that the rate is unconfigured. The estimate covers ASR only. This path has no LLM, TTS, or SIP charge.
 
-The page also aggregates up to 100 sessions from the current server process: completed/failed counts, failure rate, and alert-proxy P50/P95. It retains numeric measurements only, without audio, transcript text, challenge codes, or session identifiers. Restarting the launcher clears the sample. Small, same-machine runs remain development evidence rather than production reliability claims.
+The page aggregates the latest 100 admitted streams and exports a versioned JSON measurement report. Completion, failure, intentional cancellation, and disconnect are counted separately. Failure rate uses only completed + failed streams; disconnect cause is unknown. Alert P50/P95 includes only completed streams with a new final risk transition and valid audio timestamps. Missing, negative, or out-of-range timing estimates remain unavailable. Per-stream engine timing is its maximum ingest time. The report contains numeric samples and fixed outcome labels, no audio, transcripts, challenge codes or session identifiers; restarting clears in-memory measurements. Downloaded files remain until the operator removes them.
+
+Use “查看风险依据” for evidence and “下载签名决策回执” for a signed current-risk snapshot. The receipt omits speech but retains a session ID; it is not an anonymous performance report or an action permission. Verify it offline with `python -m scripts.verify_receipt RECEIPT.json --public-key EXPECTED_HEX --session EXPECTED_SESSION`. The expected key must have been retained independently from the authenticated `GET /api/receipt-key` response; accepting a key bundled in an untrusted receipt proves no issuer identity. Receipt keys are disposable per broker startup, without rotation or revocation infrastructure.
 
 Each microphone connection receives a fresh ingress namespace because provider turn numbers restart at zero. The participant page displays provider transcript text separately from the risk result, so a recognition error can be distinguished from an English-rule coverage gap. The supplied phrases are reproducible examples, not the only accepted audio; the current deterministic extractor deliberately recognizes a limited set of English risk expressions.
 
@@ -61,11 +63,12 @@ Next: measure live alert latency, false interventions, and actual service cost o
 
 ## Reference material
 
-Consent withdrawal and scenario reset cancel active provider tasks on the broker, even if the browser does not disconnect. Audio callbacks are bound to a processing generation so late results cannot enter a newly consented scenario. The provider adapter bounds final draining to ten seconds and rejects unsolicited early termination. These controls stop local processing; they do not delete data already sent to the provider or establish legal consent from every speaker. User-requested cancellation currently counts as an unsuccessful session in the measurement summary, so that figure is not a provider outage rate.
+Consent withdrawal and scenario reset cancel active provider tasks on the broker, even if the browser does not disconnect. Audio callbacks are bound to a processing generation so late results cannot enter a newly consented scenario. The provider adapter bounds final draining to ten seconds and rejects unsolicited early termination. The broker admits one live stream at a time, limits it to 90 seconds, and rejects confirmation requests/decisions until audio processing finishes; the browser stops recording after 60 seconds. These controls do not delete data already sent to the provider or establish legal consent from every speaker.
 
 - [Run and API details](docs/V2_PHASE1.md)
 - [Local results](scambench/LOCAL_RESULTS.md)
 - [Build history and disclosure](BUILD_LOG.md)
+- [Current delivery and mathematics/ZK boundaries](docs/DELIVERY_STATUS.md)
 
 The remaining documents in `docs/`, including architecture, threat model, product strategy and pitch plans, are design/reference material. Their future capabilities are not implementation claims. Original research is preserved at commit `16c469ae78f22f06df757595b8b36edd9359086e`.
 
