@@ -61,8 +61,10 @@ def test_two_process_approval_then_unavailable_reviewer():
         assert risk['state'] == 'CHALLENGED'
         operation = {'destination': '测试-wallet', 'amount_cents': 280000}
         bundle = call(broker_origin, '/api/request', participant_token, operation)
-        assert call(reviewer_origin, '/api/pending', reviewer_token) == bundle
-        approval = {'request_id': bundle['request']['request_id'], 'approved': True}
+        expected_pending = {k: bundle[k] for k in ('request', 'operation')}
+        assert call(reviewer_origin, '/api/pending', reviewer_token) == expected_pending
+        approval = {'request_id': bundle['request']['request_id'], 'approved': True,
+                    'challenge_response': bundle['out_of_band_challenge']}
         result = call(reviewer_origin, '/api/decide', reviewer_token, approval)
         assert result['status'] == 'simulated_action_completed'
         assert result['real_action_executed'] is False

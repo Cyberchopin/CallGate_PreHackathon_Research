@@ -19,7 +19,7 @@ def run():
     request = bundle['request']
     decision = ReviewerDecision(request=request, approved=True,
         signature=reviewer.sign(decision_bytes(request, True)).hex())
-    result = workflow.complete(decision)
+    result = workflow.complete(decision, challenge_response=bundle['out_of_band_challenge'])
     assert risk['state'] == 'CHALLENGED'
     assert result['status'] == 'simulated_action_completed'
     return dict(risk_state=risk['state'], result=result,

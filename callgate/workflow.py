@@ -66,7 +66,7 @@ class DemoWorkflow:
         with self._lock:
             if self._pending is None:
                 return None
-            request, operation = self._pending
+            request, operation, _, _ = self._pending
             return {'request': request.model_dump(), 'operation': dict(operation)}
 
     def request_confirmation(self, *, destination, amount_cents):
@@ -83,17 +83,32 @@ class DemoWorkflow:
             self._invalidate()
             request = self._coordinator.create(session_id=self._session, resource=resource,
                                                reviewer=self._reviewer)
-            self._pending = (request, operation)
+            challenge = f'{secrets.randbelow(1_000_000):06d}'
+            challenge_digest = hashlib.sha256(
+                (self._session + request.request_id + challenge).encode()).digest()
+            self._pending = (request, operation, challenge_digest, 0)
             self._outcome = None
-            return {'request': request, 'operation': dict(operation)}
+            return {'request': request, 'operation': dict(operation),
+                    'out_of_band_challenge': challenge}
 
-    def complete(self, decision):
+    def complete(self, decision, *, challenge_response=None):
         with self._lock:
             if self._pending is None or decision.request != self._pending[0]:
                 raise ValueError('no matching current confirmation')
             if self._conversation.state != 'CHALLENGED':
                 raise ValueError('policy denies action')
-            request, operation = self._pending
+            request, operation, expected_challenge, attempts = self._pending
+            if decision.approved:
+                supplied = '' if challenge_response is None else str(challenge_response)
+                actual = hashlib.sha256(
+                    (self._session + request.request_id + supplied).encode()).digest()
+                if not secrets.compare_digest(actual, expected_challenge):
+                    attempts += 1
+                    if attempts >= 3:
+                        self._invalidate()
+                    else:
+                        self._pending = (request, operation, expected_challenge, attempts)
+                    raise ValueError('invalid out-of-band challenge')
             credential = self._coordinator.decide(decision)
             self._pending = None
             if credential is None:

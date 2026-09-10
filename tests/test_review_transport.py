@@ -41,7 +41,9 @@ def demo():
     broker_app = create_broker_app(workflow, PARTICIPANT_TOKEN, REVIEWER_TOKEN,
                                    origin=BROKER_ORIGIN)
     reviewer_app = create_reviewer_app(
-        reviewer_key, REVIEWER_TOKEN, workflow.pending_confirmation, workflow.complete,
+        reviewer_key, REVIEWER_TOKEN, workflow.pending_confirmation,
+        lambda submission: workflow.complete(
+            submission.decision, challenge_response=submission.challenge_response),
         origin=REVIEWER_ORIGIN,
     )
     with TestClient(broker_app, base_url=BROKER_ORIGIN) as broker:
@@ -70,6 +72,10 @@ def decision_json(demo, approved=True):
     ).model_dump()
 
 
+def submitted(decision, challenge_response=None):
+    return {'decision': decision, 'challenge_response': challenge_response}
+
+
 @pytest.mark.parametrize("approved,expected", [
     (True, "simulated_action_completed"), (False, "reviewer_denied"),
 ])
@@ -78,8 +84,9 @@ def test_participant_request_then_explicit_reviewer_decision(demo, approved, exp
     bundle = request_action(demo, destination="Élodie 的 demo wallet")
     pending = demo.reviewer.get("/api/pending", headers=bearer(REVIEWER_TOKEN))
     assert pending.status_code == 200
-    assert pending.json() == bundle
-    payload = {"request_id": bundle["request"]["request_id"], "approved": approved}
+    assert pending.json() == {k: bundle[k] for k in ('request', 'operation')}
+    payload = {"request_id": bundle["request"]["request_id"], "approved": approved,
+               "challenge_response": bundle['out_of_band_challenge'] if approved else None}
     response = demo.reviewer.post("/api/decide", json=payload,
                                  headers=bearer(REVIEWER_TOKEN, Origin=REVIEWER_ORIGIN))
     assert response.status_code == 200
@@ -181,13 +188,13 @@ def test_signed_broker_submission_consumes_once_and_cannot_flip_denial(demo):
     request_action(demo)
     denial = decision_json(demo, approved=False)
     forged = dict(denial, approved=True)
-    assert demo.broker.post("/api/review/decision", json=forged,
+    assert demo.broker.post("/api/review/decision", json=submitted(forged, '000000'),
                             headers=bearer(REVIEWER_TOKEN)).status_code == 409
-    valid = demo.broker.post("/api/review/decision", json=denial,
+    valid = demo.broker.post("/api/review/decision", json=submitted(denial),
                             headers=bearer(REVIEWER_TOKEN))
     assert valid.status_code == 200
     assert valid.json()["status"] == "reviewer_denied"
-    assert demo.broker.post("/api/review/decision", json=denial,
+    assert demo.broker.post("/api/review/decision", json=submitted(denial),
                             headers=bearer(REVIEWER_TOKEN)).status_code == 409
 
 
@@ -205,10 +212,12 @@ def test_stale_or_expired_decision_rejected_by_both_transports(demo, invalidate)
         assert replacement["request"]["request_id"] != bundle["request"]["request_id"]
     else:
         demo.clock[0] = bundle["request"]["expires_at"]
-    payload = {"request_id": bundle["request"]["request_id"], "approved": True}
+    payload = {"request_id": bundle["request"]["request_id"], "approved": True,
+               "challenge_response": bundle['out_of_band_challenge']}
     assert demo.reviewer.post("/api/decide", json=payload,
                               headers=bearer(REVIEWER_TOKEN)).status_code == 409
-    assert demo.broker.post("/api/review/decision", json=signed,
+    assert demo.broker.post("/api/review/decision",
+                            json=submitted(signed, bundle['out_of_band_challenge']),
                             headers=bearer(REVIEWER_TOKEN)).status_code == 409
 
 
@@ -225,6 +234,7 @@ def test_changed_amount_hash_is_never_signed_or_submitted(demo):
     with TestClient(app, base_url=REVIEWER_ORIGIN) as client:
         response = client.post("/api/decide", json={
             "request_id": bundle["request"]["request_id"], "approved": True,
+            "challenge_response": bundle['out_of_band_challenge'],
         }, headers=bearer(REVIEWER_TOKEN))
     assert response.status_code == 409
     assert submitted == []
@@ -240,7 +250,8 @@ def test_upstream_failure_is_sanitized_and_keeps_confirmation_pending(demo, fail
         raise OSError(secret)
 
     fetch = failed if failure_stage == "fetch" else demo.workflow.pending_confirmation
-    submit = failed if failure_stage == "submit" else demo.workflow.complete
+    submit = failed if failure_stage == "submit" else lambda submission: demo.workflow.complete(
+        submission.decision, challenge_response=submission.challenge_response)
     app = create_reviewer_app(demo.reviewer_key, REVIEWER_TOKEN, fetch, submit,
                               origin=REVIEWER_ORIGIN)
     with TestClient(app, base_url=REVIEWER_ORIGIN) as client:
@@ -250,6 +261,7 @@ def test_upstream_failure_is_sanitized_and_keeps_confirmation_pending(demo, fail
             assert secret not in response.text
         response = client.post("/api/decide", json={
             "request_id": bundle["request"]["request_id"], "approved": True,
+            "challenge_response": bundle['out_of_band_challenge'],
         }, headers=bearer(REVIEWER_TOKEN))
     assert response.status_code == 503
     assert secret not in response.text

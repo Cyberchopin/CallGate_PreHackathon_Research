@@ -48,7 +48,7 @@ def _reviewer(public_pipe, broker_origin, reviewer_origin, reviewer_token, liste
 
     app = create_reviewer_app(key, reviewer_token,
         lambda: call('/api/review/pending'),
-        lambda decision: call('/api/review/decision', decision.model_dump()), origin=reviewer_origin)
+        lambda submission: call('/api/review/decision', submission.model_dump()), origin=reviewer_origin)
     uvicorn.Server(uvicorn.Config(app, access_log=False, log_level='warning')).run(sockets=[listener])
 
 

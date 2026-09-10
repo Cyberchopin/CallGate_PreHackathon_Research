@@ -1,4 +1,4 @@
-"""ScamBench split validation. Structural checks reduce leakage; they cannot prove independence."""
+"""Internal synthetic split validation. Structural checks cannot prove independence."""
 import hashlib
 import json
 import re

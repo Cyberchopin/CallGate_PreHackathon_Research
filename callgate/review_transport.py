@@ -27,6 +27,12 @@ class Operation(StrictModel):
 class Approval(StrictModel):
     request_id: str = Field(pattern=r'^[a-f0-9]{64}$')
     approved: bool
+    challenge_response: str | None = Field(default=None, pattern=r'^\d{6}$')
+
+
+class SubmittedDecision(StrictModel):
+    decision: ReviewerDecision
+    challenge_response: str | None = Field(default=None, pattern=r'^\d{6}$')
 
 
 class ProcessingConsent(StrictModel):
@@ -110,9 +116,9 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
         return workflow.pending_confirmation()
 
     @app.post('/api/review/decision', dependencies=[Depends(reviewer)])
-    def decision(body: ReviewerDecision):
+    def decision(body: SubmittedDecision):
         try:
-            return workflow.complete(body)
+            return workflow.complete(body.decision, challenge_response=body.challenge_response)
         except ValueError:
             raise HTTPException(409, 'confirmation invalid, stale, expired or already used') from None
 
@@ -160,7 +166,8 @@ def create_reviewer_app(signing_key, reviewer_token, fetch_pending, submit_decis
         signed = ReviewerDecision(request=request, approved=body.approved,
             signature=signing_key.sign(decision_bytes(request, body.approved)).hex())
         try:
-            return submit_decision(signed)
+            return submit_decision(SubmittedDecision(
+                decision=signed, challenge_response=body.challenge_response))
         except ValueError:
             raise HTTPException(409, 'confirmation invalid, stale, expired or already used') from None
         except Exception:

@@ -30,21 +30,23 @@ def sign(key, bundle, approved=True):
 def test_complete_once():
     workflow, reviewer, bundle, _ = setup()
     decision = sign(reviewer, bundle)
-    result = workflow.complete(decision)
+    result = workflow.complete(decision, challenge_response=bundle['out_of_band_challenge'])
     assert result['status'] == 'simulated_action_completed'
     assert result['operation']['amount_cents'] == 280000
     assert result['real_action_executed'] is False
     with pytest.raises(ValueError):
-        workflow.complete(decision)
+        workflow.complete(decision, challenge_response=bundle['out_of_band_challenge'])
 
 
 def test_forged_and_expired_confirmation():
     workflow, reviewer, bundle, clock = setup()
     with pytest.raises(ValueError, match='signature'):
-        workflow.complete(sign(Ed25519PrivateKey.generate(), bundle))
+        workflow.complete(sign(Ed25519PrivateKey.generate(), bundle),
+                          challenge_response=bundle['out_of_band_challenge'])
     clock[0] += 121
     with pytest.raises(ValueError, match='expired'):
-        workflow.complete(sign(reviewer, bundle))
+        workflow.complete(sign(reviewer, bundle),
+                          challenge_response=bundle['out_of_band_challenge'])
 
 
 def test_new_evidence_invalidates_and_secrecy_blocks():
@@ -52,7 +54,8 @@ def test_new_evidence_invalidates_and_secrecy_blocks():
     workflow.ingest(Transcript(segment_id='s2', text='Do not tell anyone.', final=True,
                                start_ms=1000, end_ms=2000))
     with pytest.raises(ValueError):
-        workflow.complete(sign(reviewer, bundle))
+        workflow.complete(sign(reviewer, bundle),
+                          challenge_response=bundle['out_of_band_challenge'])
     with pytest.raises(ValueError, match='policy'):
         workflow.request_confirmation(destination='demo-wallet', amount_cents=280000)
 
@@ -71,8 +74,21 @@ def test_superseded_requests_do_not_exhaust_pending_capacity():
     for _ in range(1001):
         bundle = workflow.request_confirmation(destination='demo-wallet', amount_cents=280000)
     with pytest.raises(ValueError):
-        workflow.complete(old)
-    assert workflow.complete(sign(reviewer, bundle))['status'] == 'simulated_action_completed'
+        workflow.complete(old, challenge_response='000000')
+    assert workflow.complete(sign(reviewer, bundle),
+        challenge_response=bundle['out_of_band_challenge'])['status'] == 'simulated_action_completed'
+
+
+def test_approval_requires_challenge_and_three_failures_cancel_request():
+    workflow, reviewer, bundle, _ = setup()
+    decision = sign(reviewer, bundle)
+    for _ in range(2):
+        with pytest.raises(ValueError, match='challenge'):
+            workflow.complete(decision, challenge_response='000000')
+        assert workflow.status()['pending'] is True
+    with pytest.raises(ValueError, match='challenge'):
+        workflow.complete(decision, challenge_response='000000')
+    assert workflow.status()['pending'] is False
 
 
 def test_processing_requires_consent_and_withdrawal_clears_session():

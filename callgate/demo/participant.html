@@ -20,9 +20,10 @@
 <label for="amount">金额（美分，280000 = 2,800.00 美元）</label>
 <input id="amount" type="number" min="1" max="100000000" step="1" value="280000">
 <button id="request">提交给核验者</button>
+<p id="challenge"></p>
 <p>只有“先核验”状态可提交。保密施压或密码请求需要暂停，这条演示路径不会放行。</p>
 </section>
 <section><h2>4. 查看结果</h2><button id="refresh">刷新结果</button>
 <p id="status" role="status">请使用启动程序给出的请求端链接。</p></section>
-<p>核验者链接只交给核验者；知道该链接的人就能代表此演示的核验者。它不是实名身份认证。每次启动创建一条临时会话。</p>
+<p>批准同时需要核验端入口和请求端生成的一次性挑战码。请通过演示之外的第二条渠道把挑战码交给核验者。它仍不是真人身份登记。</p>
 </main><script src="/review-ui.js" defer></script></html>

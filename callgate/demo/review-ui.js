@@ -59,8 +59,9 @@ if (role === 'participant') {
     el('status').textContent = '通话内容已更新。先前的待确认请求已失效。';
   });
   action('request', async () => {
-    await api('/api/request', {destination:el('destination').value, amount_cents:Number(el('amount').value)});
-    el('status').textContent = '等待核验者在单独页面读取并确认。当前未执行操作。';
+    const result = await api('/api/request', {destination:el('destination').value, amount_cents:Number(el('amount').value)});
+    el('challenge').textContent = '一次性挑战码：' + result.out_of_band_challenge + '。请通过演示之外的第二条渠道告诉核验者。';
+    el('status').textContent = '等待核验者核对操作并输入挑战码。当前未执行操作。';
   });
   action('refresh', async () => {
     const result = await api('/api/status');
@@ -88,7 +89,10 @@ if (role === 'participant') {
       if (!pending || busy) return;
       busy = true; disable();
       try {
-        const result = await api('/api/decide', {request_id:pending.request_id, approved});
+        const challenge = approved ? el('challenge-response').value.trim() : null;
+        if (approved && !/^\d{6}$/.test(challenge)) throw new Error('批准前请输入请求人通过另一条渠道提供的六位挑战码。');
+        const result = await api('/api/decide', {request_id:pending.request_id, approved,
+          challenge_response:challenge});
         el('status').textContent = outcomeText(result);
       } catch (error) { el('status').textContent = error.message; }
       finally { pending = null; busy = false; disable(); }
