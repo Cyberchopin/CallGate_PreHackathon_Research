@@ -73,6 +73,16 @@ def _bind(port):
         raise
 
 
+def _bind_with_fallback(preferred_port):
+    for port in [preferred_port, 0]:
+        try:
+            return _bind(port)
+        except OSError as error:
+            if port == preferred_port and error.errno in {48, 98, 10048}:
+                continue
+            raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--participant-port', type=int, default=8766)
@@ -80,8 +90,8 @@ def main():
     args = parser.parse_args()
     sockets, children = [], []
     try:
-        sockets.append(_bind(args.participant_port))
-        sockets.append(_bind(args.reviewer_port))
+        sockets.append(_bind_with_fallback(args.participant_port))
+        sockets.append(_bind_with_fallback(args.reviewer_port))
         broker_origin = 'http://127.0.0.1:' + str(sockets[0].getsockname()[1])
         reviewer_origin = 'http://127.0.0.1:' + str(sockets[1].getsockname()[1])
         participant_token, reviewer_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
