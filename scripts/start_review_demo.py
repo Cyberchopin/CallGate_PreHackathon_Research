@@ -7,9 +7,11 @@ role capabilities; keep the reviewer URL away from the participant browser.
 import argparse
 import json
 import multiprocessing as mp
+import os
 import secrets
 import socket
 import time
+from pathlib import Path
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError
 
@@ -88,6 +90,11 @@ def main():
     parser.add_argument('--participant-port', type=int, default=8766)
     parser.add_argument('--reviewer-port', type=int, default=8767)
     args = parser.parse_args()
+    env_path = Path(__file__).resolve().parents[1] / '.env'
+    if env_path.exists() and not os.environ.get('ASSEMBLYAI_API_KEY'):
+        for line in env_path.read_text(encoding='utf-8-sig').splitlines():
+            if line.startswith('ASSEMBLYAI_API_KEY='):
+                os.environ['ASSEMBLYAI_API_KEY'] = line.split('=', 1)[1].strip()
     sockets, children = [], []
     try:
         sockets.append(_bind_with_fallback(args.participant_port))

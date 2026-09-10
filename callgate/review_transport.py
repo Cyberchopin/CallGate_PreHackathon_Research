@@ -3,17 +3,20 @@
 The broker owns the issuer and policy. Only the reviewer process holds the
 reviewer signing key. Both processes and their host remain trusted.
 """
+import asyncio
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import Field
 
 from .confirmation import ConfirmationRequest, ReviewerDecision, decision_bytes
+from .assemblyai import stream_pcm
 from .models import StrictModel, Transcript
 
 ASSETS = Path(__file__).parent / 'demo'
@@ -72,6 +75,10 @@ def guarded_app(origin, page):
     def css():
         return FileResponse(ASSETS / 'review-ui.css', media_type='text/css')
 
+    @app.get('/pcm-worklet.js')
+    def pcm_worklet():
+        return FileResponse(ASSETS / 'pcm-worklet.js', media_type='text/javascript')
+
     return app
 
 
@@ -103,6 +110,57 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
             return workflow.ingest(body)
         except ValueError:
             raise HTTPException(409, 'transcript rejected') from None
+
+    @app.websocket('/api/audio')
+    async def audio(ws: WebSocket):
+        if ws.headers.get('host') != urlsplit(origin).netloc or ws.headers.get('origin') != origin:
+            await ws.close(code=1008)
+            return
+        await ws.accept()
+        try:
+            raw = await asyncio.wait_for(ws.receive_text(), 5)
+            supplied = json.loads(raw)
+            candidate = supplied.get('token', '') if supplied.get('type') == 'authenticate' else ''
+            if not isinstance(candidate, str) or not hmac.compare_digest(candidate, participant_token):
+                await ws.close(code=1008)
+                return
+            if not workflow.status()['processing_allowed']:
+                await ws.send_json({'error': 'processing_consent_required'})
+                await ws.close(code=1008)
+                return
+            if not os.environ.get('ASSEMBLYAI_API_KEY'):
+                await ws.send_json({'error': 'assemblyai_not_configured'})
+                await ws.close(code=1011)
+                return
+
+            async def chunks():
+                while True:
+                    item = await asyncio.wait_for(ws.receive(), 30)
+                    if item['type'] == 'websocket.disconnect':
+                        raise WebSocketDisconnect()
+                    if item.get('bytes') is not None:
+                        yield item['bytes']
+                    elif item.get('text') == '{"type":"stop"}':
+                        return
+                    else:
+                        raise ValueError('expected PCM bytes or stop')
+
+            async def on_segment(segment):
+                result = workflow.ingest(segment)
+                await ws.send_json({'transcript': segment.model_dump(), 'risk': result})
+
+            await asyncio.wait_for(stream_pcm(chunks(), on_segment), timeout=1800)
+            await ws.send_json({'type': 'completed'})
+            await ws.close()
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            try:
+                await ws.send_json({'error': 'audio_stream_failed',
+                                    'protected_actions_allowed': False})
+                await ws.close(code=1011)
+            except (WebSocketDisconnect, RuntimeError):
+                pass
 
     @app.post('/api/request', dependencies=[Depends(participant)])
     def request_confirmation(body: Operation):

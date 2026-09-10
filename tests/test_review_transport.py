@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 pytest.importorskip("cryptography")
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -12,6 +13,7 @@ from callgate.confirmation import ConfirmationCoordinator, ConfirmationRequest, 
 from callgate.review_transport import create_broker_app, create_reviewer_app
 from callgate.verification import DemoVerificationGate
 from callgate.workflow import DemoWorkflow
+from callgate.models import Transcript
 
 
 BROKER_ORIGIN = "http://127.0.0.1:8766"
@@ -62,6 +64,40 @@ def request_action(demo, *, destination="demo-wallet", amount_cents=280000):
     }, headers=bearer(PARTICIPANT_TOKEN, Origin=BROKER_ORIGIN))
     assert response.status_code == 200
     return response.json()
+
+
+def test_audio_ingress_shares_the_confirmation_workflow(demo, monkeypatch):
+    monkeypatch.setenv('ASSEMBLYAI_API_KEY', 'test-key')
+
+    async def provider(chunks, on_segment):
+        received = []
+        async for chunk in chunks:
+            received.append(chunk)
+        assert received == [b'\0' * 3200]
+        await on_segment(Transcript(segment_id='voice-1', text='Send money right now.',
+            start_ms=0, end_ms=1000, final=True, role='caller'))
+
+    monkeypatch.setattr('callgate.review_transport.stream_pcm', provider)
+    ws_headers = {'Origin': BROKER_ORIGIN, 'Host': '127.0.0.1:8766'}
+    with demo.broker.websocket_connect('/api/audio', headers=ws_headers) as ws:
+        ws.send_json({'type': 'authenticate', 'token': PARTICIPANT_TOKEN})
+        ws.send_bytes(b'\0' * 3200)
+        ws.send_text('{"type":"stop"}')
+        assert ws.receive_json()['risk']['state'] == 'CHALLENGED'
+        assert ws.receive_json()['type'] == 'completed'
+    bundle = demo.broker.post('/api/request', json={
+        'destination': 'demo-wallet', 'amount_cents': 100,
+    }, headers=bearer(PARTICIPANT_TOKEN)).json()
+    assert bundle['out_of_band_challenge'].isdigit()
+    assert len(bundle['out_of_band_challenge']) == 6
+
+
+def test_audio_ingress_requires_participant_capability(demo):
+    ws_headers = {'Origin': BROKER_ORIGIN, 'Host': '127.0.0.1:8766'}
+    with demo.broker.websocket_connect('/api/audio', headers=ws_headers) as ws:
+        ws.send_json({'type': 'authenticate', 'token': REVIEWER_TOKEN})
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_json()
 
 
 def decision_json(demo, approved=True):
