@@ -73,17 +73,15 @@ async def stream_pcm(chunks, on_segment, connector=connect, api_key=None, speake
                 segment = normalizer.normalize(message)
                 if segment:
                     await on_segment(segment)
+            raise RuntimeError("speech stream ended without termination")
 
         sender = asyncio.create_task(send())
         receiver = asyncio.create_task(receive())
         try:
-            done, _ = await asyncio.wait({sender, receiver}, return_when=asyncio.FIRST_COMPLETED)
-            for task in done:
-                task.result()
-            if sender in done:
-                await asyncio.wait_for(receiver, timeout=10)
-            else:
-                raise RuntimeError("speech stream ended before audio input")
+            # A normal provider Termination can arrive in the same event-loop
+            # turn that the sender finishes. Waiting for both avoids treating
+            # that scheduling race as a failed stream.
+            await asyncio.gather(sender, receiver)
         finally:
             for task in (sender, receiver):
                 if not task.done():

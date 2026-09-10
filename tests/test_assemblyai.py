@@ -42,6 +42,42 @@ def test_transport_contract():
     assert json.loads(fake.sent[-1]) == {"type": "Terminate"}
 
 
+def test_graceful_termination_racing_sender_is_not_a_failure():
+    class Fake:
+        def __init__(self): self.returned = False
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def send(self, value): await asyncio.sleep(0.001)
+        def __aiter__(self): return self
+        async def __anext__(self):
+            if self.returned:
+                await asyncio.Future()
+            self.returned = True
+            return json.dumps({'type': 'Termination'})
+
+    async def chunks():
+        yield b'\0' * 3200
+
+    asyncio.run(stream_pcm(chunks(), lambda _: None,
+        connector=lambda *args, **kwargs: Fake(), api_key='test-only'))
+
+
+def test_provider_close_without_termination_is_a_failure():
+    class Fake:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def send(self, value): pass
+        def __aiter__(self): return self
+        async def __anext__(self): raise StopAsyncIteration
+
+    async def chunks():
+        yield b'\0' * 3200
+
+    with pytest.raises(RuntimeError, match='without termination'):
+        asyncio.run(stream_pcm(chunks(), lambda _: None,
+            connector=lambda *args, **kwargs: Fake(), api_key='test-only'))
+
+
 def test_missing_key(monkeypatch):
     monkeypatch.delenv("ASSEMBLYAI_API_KEY", raising=False)
     with pytest.raises(ValueError):
