@@ -9,6 +9,7 @@ import hmac
 import json
 import math
 import os
+import secrets
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -158,6 +159,7 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
             first_alert_proxy_ms = None
             risk_engine_samples = []
             measurement_recorded = False
+            ingress_prefix = secrets.token_hex(4)
 
             async def chunks():
                 nonlocal audio_bytes
@@ -175,6 +177,10 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
 
             async def on_segment(segment):
                 nonlocal first_alert_proxy_ms
+                # AssemblyAI turn numbering restarts at zero for every socket.
+                # Namespace it before adding evidence to the shared workflow.
+                segment = segment.model_copy(
+                    update={'segment_id': ingress_prefix + '-' + segment.segment_id})
                 risk_started = time.perf_counter()
                 result = workflow.ingest(segment)
                 risk_ms = (time.perf_counter() - risk_started) * 1000

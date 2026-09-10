@@ -45,6 +45,8 @@ During a live run, the participant page shows received audio duration, local ris
 
 The page also aggregates up to 100 sessions from the current server process: completed/failed counts, failure rate, and alert-proxy P50/P95. It retains numeric measurements only, without audio, transcript text, challenge codes, or session identifiers. Restarting the launcher clears the sample. Small, same-machine runs remain development evidence rather than production reliability claims.
 
+Each microphone connection receives a fresh ingress namespace because provider turn numbers restart at zero. The participant page displays provider transcript text separately from the risk result, so a recognition error can be distinguished from an English-rule coverage gap. The supplied phrases are reproducible examples, not the only accepted audio; the current deterministic extractor deliberately recognizes a limited set of English risk expressions.
+
 ## Reuse and project contribution
 
 AssemblyAI supplies streaming transcription; Silero and Pipecat integrations provide optional voice processing components; NetworkX, cryptography and SQLite supply graph, signature and persistence primitives. CallGate adds revision-aware evidence handling, cross-turn action/secrecy rules, advisory policy, and tests of scoped credentials and replay rejection.

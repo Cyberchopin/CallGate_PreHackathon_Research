@@ -111,6 +111,32 @@ def test_audio_ingress_requires_participant_capability(demo):
             ws.receive_json()
 
 
+def test_second_audio_connection_gets_a_fresh_segment_namespace(demo, monkeypatch):
+    monkeypatch.setenv('ASSEMBLYAI_API_KEY', 'test-key')
+    texts = iter(['Send money right now.', 'Tell me your verification code.'])
+
+    async def provider(chunks, on_segment):
+        async for _ in chunks:
+            pass
+        await on_segment(Transcript(segment_id='aai-0', text=next(texts),
+            start_ms=0, end_ms=1000, final=True, role='caller'))
+
+    monkeypatch.setattr('callgate.review_transport.stream_pcm', provider)
+    headers = {'Origin': BROKER_ORIGIN, 'Host': '127.0.0.1:8766'}
+    states = []
+    for _ in range(2):
+        with demo.broker.websocket_connect('/api/audio', headers=headers) as ws:
+            ws.send_json({'type': 'authenticate', 'token': PARTICIPANT_TOKEN})
+            ws.send_bytes(b'\0' * 3200)
+            ws.send_text('{"type":"stop"}')
+            states.append(ws.receive_json()['risk']['state'])
+            assert ws.receive_json()['type'] == 'completed'
+    assert states == ['CHALLENGED', 'BLOCKED']
+    summary = demo.broker.get('/api/metrics/summary',
+                              headers=bearer(PARTICIPANT_TOKEN)).json()
+    assert summary['sessions'] == 2 and summary['failed'] == 0
+
+
 def decision_json(demo, approved=True):
     request = ConfirmationRequest.model_validate(demo.workflow.pending_confirmation()["request"])
     return ReviewerDecision(

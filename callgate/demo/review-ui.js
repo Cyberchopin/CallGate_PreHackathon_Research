@@ -89,7 +89,8 @@ if (role === 'participant') {
   });
   el('start-audio').onclick = async () => {
     if (audio) return;
-    const s = {}; audio = s; el('start-audio').disabled = true;
+    const s = {turns:new Map()}; audio = s; el('start-audio').disabled = true;
+    el('live-transcript').textContent='等待语音服务返回转录…';
     el('audio-status').textContent = '正在请求麦克风权限…';
     try {
       s.stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,
@@ -114,6 +115,14 @@ if (role === 'participant') {
           const cost=m.estimated_asr_cost_usd === null ? '未配置 ASR 单价' : 'ASR 估算 $'+m.estimated_asr_cost_usd;
           el('metrics').textContent='已接收音频 '+(m.audio_received_ms/1000).toFixed(2)+' 秒；本地风险引擎 '+
             m.risk_engine_ms+' ms；语音结束到提醒代理值 '+m.end_of_speech_to_alert_proxy_ms+' ms；'+cost+'。';
+        }
+        if (message.transcript) {
+          s.turns.set(message.transcript.segment_id, message.transcript);
+          el('live-transcript').replaceChildren();
+          for (const turn of s.turns.values()) {
+            const line=document.createElement('div'); line.textContent=turn.text;
+            el('live-transcript').append(line);
+          }
         }
         if (message.risk) showRisk(message.risk);
       };
