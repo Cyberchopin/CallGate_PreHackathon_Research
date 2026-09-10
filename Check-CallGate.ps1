@@ -14,8 +14,15 @@ $taskSelected = $null
 $taskProbe = 'import importlib.util,sys; sys.exit(0 if all(importlib.util.find_spec(m) for m in ("pytest","fastapi","httpx","networkx","cryptography","onnxruntime","pipecat")) else 1)'
 foreach ($taskCandidate in $taskCandidates) {
     if (Test-Path -LiteralPath $taskCandidate -PathType Leaf) {
-        & $taskCandidate -c $taskProbe 2>$null
-        if ($LASTEXITCODE -eq 0) { $taskSelected = $taskCandidate; break }
+        $taskProbeExitCode = 1
+        try {
+            & $taskCandidate -c $taskProbe 2>$null
+            $taskProbeExitCode = $LASTEXITCODE
+        } catch {
+            # A broken candidate is expected; continue to the next environment.
+            $taskProbeExitCode = 1
+        }
+        if ($taskProbeExitCode -eq 0) { $taskSelected = $taskCandidate; break }
     }
 }
 if (-not $taskSelected) {
