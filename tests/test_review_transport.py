@@ -1,5 +1,7 @@
 """Security boundaries for the disposable, two-process reviewer demo."""
 import time
+import asyncio
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -109,6 +111,29 @@ def test_audio_ingress_requires_participant_capability(demo):
         ws.send_json({'type': 'authenticate', 'token': REVIEWER_TOKEN})
         with pytest.raises(WebSocketDisconnect):
             ws.receive_json()
+
+
+@pytest.mark.parametrize('route,body', [('/api/session/reset', {}),
+    ('/api/processing-consent', {'granted': False})])
+def test_server_stops_idle_provider_without_browser_cooperation(demo, monkeypatch, route, body):
+    monkeypatch.setenv('ASSEMBLYAI_API_KEY', 'test-key')
+    started, stopped = threading.Event(), threading.Event()
+    async def provider(chunks, on_segment):
+        started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            stopped.set()
+    monkeypatch.setattr('callgate.review_transport.stream_pcm', provider)
+    with demo.broker.websocket_connect('/api/audio', headers={
+        'Origin': BROKER_ORIGIN, 'Host': '127.0.0.1:8766'}) as ws:
+        ws.send_json({'type':'authenticate', 'token':PARTICIPANT_TOKEN})
+        assert started.wait(2)
+        response = demo.broker.post(route, json=body, headers=bearer(PARTICIPANT_TOKEN))
+        assert response.status_code == 200
+        assert stopped.wait(2)
+        assert ws.receive_json()['error'] == 'processing_stopped'
+    assert demo.workflow.status()['processing_allowed'] is False
 
 
 def test_second_audio_connection_gets_a_fresh_segment_namespace(demo, monkeypatch):

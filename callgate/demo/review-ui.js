@@ -109,9 +109,11 @@ if (role === 'participant') {
     try {
       s.stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,
         echoCancellation:true,noiseSuppression:true},video:false});
+      if (audio !== s) { closeAudio(s); return; }
       s.context = new AudioContext({sampleRate:16000});
       if (s.context.sampleRate !== 16000) throw new Error('sample-rate');
       await s.context.audioWorklet.addModule('/pcm-worklet.js');
+      if (audio !== s) { closeAudio(s); return; }
       s.ws = new WebSocket(`ws://${location.host}/api/audio`);
       await new Promise((resolve,reject) => {
         const timer=setTimeout(()=>reject(new Error('timeout')),10000);
@@ -119,7 +121,9 @@ if (role === 'participant') {
         s.ws.onerror=()=>{clearTimeout(timer);reject(new Error('connect'));};
       });
       s.ws.onmessage = ({data}) => {
+        if (audio !== s) return;
         const message=JSON.parse(data);
+        if (message.error === 'processing_stopped') { finishAudio('处理已停止，麦克风已关闭。'); return; }
         if (message.error) { finishAudio(message.error === 'processing_consent_required'
           ? '请先明确允许处理本次测试内容。' : message.error === 'assemblyai_not_configured'
           ? '语音服务尚未配置；可使用文本备用输入。' : '语音服务连接失败；可使用文本备用输入。'); return; }
@@ -149,7 +153,7 @@ if (role === 'participant') {
       };
       s.source.connect(s.node); s.node.connect(s.context.destination);
       el('stop-audio').disabled=false; el('audio-status').textContent='正在处理语音；说完后点击停止。';
-    } catch (_) { finishAudio('无法启动麦克风；请允许权限或使用文本备用输入。'); }
+    } catch (_) { if (audio === s) finishAudio('无法启动麦克风；请允许权限或使用文本备用输入。'); }
   };
   el('stop-audio').onclick = () => {
     const s=audio; if(!s) return;

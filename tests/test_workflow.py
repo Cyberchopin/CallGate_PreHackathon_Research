@@ -124,3 +124,18 @@ def test_new_session_invalidates_old_confirmation_and_requires_fresh_consent():
     with pytest.raises(ValueError, match='consent'):
         workflow.ingest(Transcript(segment_id='new', text='Hello', final=True,
                                    start_ms=0, end_ms=1000))
+
+
+@pytest.mark.parametrize('change', ['reset', 'withdraw'])
+def test_late_audio_cannot_enter_reconsented_session(change):
+    workflow, _, _, _ = setup()
+    generation = workflow.processing_generation()
+    if change == 'reset':
+        workflow.reset_session()
+    else:
+        workflow.set_processing_consent(False)
+    workflow.set_processing_consent(True)
+    with pytest.raises(ValueError, match='stale'):
+        workflow.ingest(Transcript(segment_id='late', text='Send money.',
+            start_ms=0, end_ms=1000, final=True), generation=generation)
+    assert workflow.status()['risk_state'] == 'UNVERIFIED'

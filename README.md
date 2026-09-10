@@ -61,6 +61,8 @@ Next: measure live alert latency, false interventions, and actual service cost o
 
 ## Reference material
 
+Consent withdrawal and scenario reset cancel active provider tasks on the broker, even if the browser does not disconnect. Audio callbacks are bound to a processing generation so late results cannot enter a newly consented scenario. The provider adapter bounds final draining to ten seconds and rejects unsolicited early termination. These controls stop local processing; they do not delete data already sent to the provider or establish legal consent from every speaker. User-requested cancellation currently counts as an unsuccessful session in the measurement summary, so that figure is not a provider outage rate.
+
 - [Run and API details](docs/V2_PHASE1.md)
 - [Local results](scambench/LOCAL_RESULTS.md)
 - [Build history and disclosure](BUILD_LOG.md)

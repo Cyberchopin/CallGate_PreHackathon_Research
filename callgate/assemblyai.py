@@ -47,7 +47,8 @@ class AssemblyTurns:
         return segment
 
 
-async def stream_pcm(chunks, on_segment, connector=connect, api_key=None, speaker_roles=None):
+async def stream_pcm(chunks, on_segment, connector=connect, api_key=None, speaker_roles=None,
+                     drain_timeout=10):
     """Stream 16kHz mono PCM16 chunks; bounded provider queues and 10s final drain."""
     key = api_key or os.environ.get("ASSEMBLYAI_API_KEY")
     if not key:
@@ -56,11 +57,14 @@ async def stream_pcm(chunks, on_segment, connector=connect, api_key=None, speake
     normalizer = AssemblyTurns(speaker_roles=speaker_roles)
     async with connector(url, additional_headers={"Authorization": key}, max_queue=16,
                          open_timeout=10, close_timeout=3) as ws:
+        termination_requested = False
         async def send():
+            nonlocal termination_requested
             async for chunk in chunks:
                 if not isinstance(chunk, bytes) or not 1600 <= len(chunk) <= 32000 or len(chunk) % 2:
                     raise ValueError("PCM chunks must contain 50-1000ms of mono 16kHz PCM16")
                 await ws.send(chunk)
+            termination_requested = True
             await ws.send(json.dumps({"type": "Terminate"}))
 
         async def receive():
@@ -78,10 +82,12 @@ async def stream_pcm(chunks, on_segment, connector=connect, api_key=None, speake
         sender = asyncio.create_task(send())
         receiver = asyncio.create_task(receive())
         try:
-            # A normal provider Termination can arrive in the same event-loop
-            # turn that the sender finishes. Waiting for both avoids treating
-            # that scheduling race as a failed stream.
-            await asyncio.gather(sender, receiver)
+            done, _ = await asyncio.wait({sender, receiver}, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                task.result()
+            if receiver in done and not termination_requested:
+                raise RuntimeError('speech stream ended before audio input')
+            await asyncio.wait_for(asyncio.gather(sender, receiver), timeout=drain_timeout)
         finally:
             for task in (sender, receiver):
                 if not task.done():

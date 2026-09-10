@@ -17,6 +17,7 @@ class DemoWorkflow:
         self._pending = None
         self._outcome = None
         self._processing_consent = 'NOT_REQUESTED'
+        self._generation = 0
         self._lock = threading.Lock()
 
     def _invalidate(self):
@@ -44,6 +45,7 @@ class DemoWorkflow:
             if granted:
                 self._processing_consent = 'GRANTED'
             else:
+                self._generation += 1
                 self._processing_consent = ('REVOKED' if self._processing_consent == 'GRANTED'
                                             else 'DECLINED')
                 self._invalidate()
@@ -55,6 +57,7 @@ class DemoWorkflow:
     def reset_session(self):
         """End the current scenario and require fresh consent for a new one."""
         with self._lock:
+            self._generation += 1
             self._invalidate()
             self._conversation = Conversation()
             self._session = secrets.token_hex(16)
@@ -64,8 +67,16 @@ class DemoWorkflow:
                     'processing_consent': self._processing_consent,
                     'processing_allowed': False, 'pending': False, 'outcome': None}
 
-    def ingest(self, transcript):
+    def processing_generation(self):
         with self._lock:
+            if self._processing_consent != 'GRANTED':
+                raise ValueError('processing consent required')
+            return self._generation
+
+    def ingest(self, transcript, *, generation=None):
+        with self._lock:
+            if generation is not None and generation != self._generation:
+                raise ValueError('stale audio session')
             if self._processing_consent != 'GRANTED':
                 raise ValueError('processing consent required')
             result = self._conversation.ingest(transcript)

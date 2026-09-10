@@ -111,6 +111,13 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
         raise ValueError('distinct role credentials required')
     app = guarded_app(origin, 'participant.html')
     live_metrics = LiveMetrics()
+    active_audio = set()
+
+    async def stop_audio():
+        tasks = list(active_audio)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
     participant, reviewer = bearer(participant_token), bearer(reviewer_token)
 
     @app.get('/api/status', dependencies=[Depends(participant)])
@@ -122,12 +129,17 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
         return live_metrics.summary()
 
     @app.post('/api/processing-consent', dependencies=[Depends(participant)])
-    def processing_consent(body: ProcessingConsent):
-        return workflow.set_processing_consent(body.granted)
+    async def processing_consent(body: ProcessingConsent):
+        result = workflow.set_processing_consent(body.granted)
+        if not body.granted:
+            await stop_audio()
+        return result
 
     @app.post('/api/session/reset', dependencies=[Depends(participant)])
-    def reset_session():
-        return workflow.reset_session()
+    async def reset_session():
+        result = workflow.reset_session()
+        await stop_audio()
+        return result
 
     @app.post('/api/transcript', dependencies=[Depends(participant)])
     def ingest(body: Transcript):
@@ -157,6 +169,8 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                 await ws.send_json({'error': 'assemblyai_not_configured'})
                 await ws.close(code=1011)
                 return
+            generation = workflow.processing_generation()
+            provider_task = None
             started = time.perf_counter()
             audio_bytes = 0
             asr_rate = configured_asr_rate()
@@ -172,6 +186,8 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                     if item['type'] == 'websocket.disconnect':
                         raise WebSocketDisconnect()
                     if item.get('bytes') is not None:
+                        if workflow.processing_generation() != generation:
+                            raise ValueError('stale audio session')
                         audio_bytes += len(item['bytes'])
                         yield item['bytes']
                     elif item.get('text') == '{"type":"stop"}':
@@ -186,7 +202,7 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                 segment = segment.model_copy(
                     update={'segment_id': ingress_prefix + '-' + segment.segment_id})
                 risk_started = time.perf_counter()
-                result = workflow.ingest(segment)
+                result = workflow.ingest(segment, generation=generation)
                 risk_ms = (time.perf_counter() - risk_started) * 1000
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 audio_ms = audio_bytes / 32
@@ -208,7 +224,9 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                 await ws.send_json({'transcript': segment.model_dump(), 'risk': result,
                                     'metrics': metrics})
 
-            await asyncio.wait_for(stream_pcm(chunks(), on_segment), timeout=1800)
+            provider_task = asyncio.create_task(stream_pcm(chunks(), on_segment))
+            active_audio.add(provider_task)
+            await asyncio.wait_for(provider_task, timeout=1800)
             live_metrics.record(completed=True, audio_ms=audio_bytes / 32,
                 first_alert_proxy_ms=first_alert_proxy_ms,
                 risk_engine_ms=max(risk_engine_samples) if risk_engine_samples else None)
@@ -220,6 +238,16 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                 'cost_scope': 'asr_only_configured_rate',
             }})
             await ws.close()
+        except asyncio.CancelledError:
+            if 'started' in locals() and not measurement_recorded:
+                live_metrics.record(completed=False, audio_ms=audio_bytes / 32,
+                    first_alert_proxy_ms=first_alert_proxy_ms,
+                    risk_engine_ms=max(risk_engine_samples) if risk_engine_samples else None)
+            try:
+                await ws.send_json({'error': 'processing_stopped'})
+                await ws.close(code=1000)
+            except (WebSocketDisconnect, RuntimeError):
+                pass
         except WebSocketDisconnect:
             if 'started' in locals() and not measurement_recorded:
                 live_metrics.record(completed=False, audio_ms=audio_bytes / 32,
@@ -236,6 +264,13 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                 await ws.close(code=1011)
             except (WebSocketDisconnect, RuntimeError):
                 pass
+
+        finally:
+            if 'provider_task' in locals() and provider_task is not None:
+                active_audio.discard(provider_task)
+                if not provider_task.done():
+                    provider_task.cancel()
+                await asyncio.gather(provider_task, return_exceptions=True)
 
     @app.post('/api/request', dependencies=[Depends(participant)])
     def request_confirmation(body: Operation):

@@ -44,12 +44,18 @@ def test_transport_contract():
 
 def test_graceful_termination_racing_sender_is_not_a_failure():
     class Fake:
-        def __init__(self): self.returned = False
+        def __init__(self):
+            self.returned = False
+            self.terminating = asyncio.Event()
         async def __aenter__(self): return self
         async def __aexit__(self, *args): pass
-        async def send(self, value): await asyncio.sleep(0.001)
+        async def send(self, value):
+            if isinstance(value, str):
+                self.terminating.set()
+                await asyncio.sleep(0.001)
         def __aiter__(self): return self
         async def __anext__(self):
+            await self.terminating.wait()
             if self.returned:
                 await asyncio.Future()
             self.returned = True
@@ -82,6 +88,21 @@ def test_missing_key(monkeypatch):
     monkeypatch.delenv("ASSEMBLYAI_API_KEY", raising=False)
     with pytest.raises(ValueError):
         asyncio.run(stream_pcm(None, None))
+
+
+def test_final_drain_timeout_cleans_up_provider():
+    closed = []
+    class Fake:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): closed.append(True)
+        async def send(self, value): pass
+        def __aiter__(self): return self
+        async def __anext__(self): await asyncio.Future()
+    async def chunks(): yield b'\0' * 3200
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(stream_pcm(chunks(), None, connector=lambda *a, **k: Fake(),
+                               api_key='test', drain_timeout=.01))
+    assert closed == [True]
 
 
 def test_speaker_labels_are_relative_until_trusted_mapping_exists():
