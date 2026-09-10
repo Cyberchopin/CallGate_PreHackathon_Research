@@ -1,17 +1,129 @@
 {
-  "dataset_sha256": "11a65e91a54c60dd9b838e7ee0303c807b0f31ae7d25e2d20a41069712c0b0ba",
-  "cases": 12,
-  "corpus": "synthetic-dev-smoke-v1",
-  "limitations": "Same-author development cases; no held-out accuracy or audio latency claim.",
-  "extractor": "rules-en-v1",
+  "dataset_sha256": "2739618e5f8ed9da455beebf3e4dfd9d17b2cad494e7389d7ee0060a0cb6bc52",
+  "cases": 25,
+  "corpus": "synthetic-dev-smoke-v2",
+  "limitations": "Same-author development cases; Wilson intervals describe only this small corpus; no held-out accuracy or audio latency claim.",
+  "extractor": "rules-en-v3",
   "policy": "v2-phase1",
   "python": "3.12.14",
   "platform": "Windows-11-10.0.26200-SP0",
-  "event_precision": 0.8461538461538461,
-  "event_recall": 0.9166666666666666,
-  "false_intervention_rate": 0.16666666666666666,
-  "state_passes": 10,
-  "engine_p95_ms": 0.6490999999186897,
+  "event_precision": 1.0,
+  "event_recall": 1.0,
+  "alert_confusion": {
+    "tp": 15,
+    "fp": 0,
+    "fn": 1,
+    "tn": 9
+  },
+  "alert_precision": 1.0,
+  "alert_recall": 0.9375,
+  "alert_recall_wilson95": [
+    0.7167073163197013,
+    0.9888809426916687
+  ],
+  "specificity": 1.0,
+  "specificity_wilson95": [
+    0.7008472464490407,
+    1
+  ],
+  "false_intervention_rate": 0.0,
+  "calibration": "not_applicable: score is a heuristic, not a probability",
+  "detection_delay_p50_ms": 1000,
+  "detection_delay_p95_ms": 1000,
+  "by_slice": {
+    "authority": {
+      "cases": 3,
+      "state_pass_rate": 1.0,
+      "alerts": 3,
+      "false_interventions": 0
+    },
+    "benign": {
+      "cases": 2,
+      "state_pass_rate": 1.0,
+      "alerts": 0,
+      "false_interventions": 0
+    },
+    "benign-urgency": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 0,
+      "false_interventions": 0
+    },
+    "benign-warning": {
+      "cases": 2,
+      "state_pass_rate": 1.0,
+      "alerts": 0,
+      "false_interventions": 0
+    },
+    "coercion": {
+      "cases": 3,
+      "state_pass_rate": 1.0,
+      "alerts": 3,
+      "false_interventions": 0
+    },
+    "credentials": {
+      "cases": 3,
+      "state_pass_rate": 1.0,
+      "alerts": 3,
+      "false_interventions": 0
+    },
+    "injection": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 0,
+      "false_interventions": 0
+    },
+    "known-gap-language": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 0,
+      "false_interventions": 0
+    },
+    "known-gap-paraphrase": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 1,
+      "false_interventions": 0
+    },
+    "known-gap-quotation": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 0,
+      "false_interventions": 0
+    },
+    "multi-turn": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 1,
+      "false_interventions": 0
+    },
+    "payment": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 1,
+      "false_interventions": 0
+    },
+    "remote": {
+      "cases": 2,
+      "state_pass_rate": 1.0,
+      "alerts": 2,
+      "false_interventions": 0
+    },
+    "revision": {
+      "cases": 1,
+      "state_pass_rate": 1.0,
+      "alerts": 0,
+      "false_interventions": 0
+    },
+    "speaker": {
+      "cases": 2,
+      "state_pass_rate": 1.0,
+      "alerts": 1,
+      "false_interventions": 0
+    }
+  },
+  "state_passes": 25,
+  "engine_p95_ms": 0.11560000007193594,
   "rows": [
     {
       "id": "benign-chat",
@@ -19,6 +131,7 @@
       "state": "UNVERIFIED",
       "expected_state": "UNVERIFIED",
       "state_pass": true,
+      "expected_alert": false,
       "missing_events": [],
       "extra_events": [],
       "benign": true,
@@ -32,6 +145,7 @@
       "state": "CHALLENGED",
       "expected_state": "CHALLENGED",
       "state_pass": true,
+      "expected_alert": true,
       "missing_events": [],
       "extra_events": [],
       "benign": false,
@@ -45,6 +159,7 @@
       "state": "COOLING_OFF",
       "expected_state": "COOLING_OFF",
       "state_pass": true,
+      "expected_alert": true,
       "missing_events": [],
       "extra_events": [],
       "benign": false,
@@ -58,6 +173,7 @@
       "state": "BLOCKED",
       "expected_state": "BLOCKED",
       "state_pass": true,
+      "expected_alert": true,
       "missing_events": [],
       "extra_events": [],
       "benign": false,
@@ -71,6 +187,7 @@
       "state": "CHALLENGED",
       "expected_state": "CHALLENGED",
       "state_pass": true,
+      "expected_alert": true,
       "missing_events": [],
       "extra_events": [],
       "benign": false,
@@ -84,6 +201,7 @@
       "state": "UNVERIFIED",
       "expected_state": "UNVERIFIED",
       "state_pass": true,
+      "expected_alert": false,
       "missing_events": [],
       "extra_events": [],
       "benign": false,
@@ -97,6 +215,7 @@
       "state": "UNVERIFIED",
       "expected_state": "UNVERIFIED",
       "state_pass": true,
+      "expected_alert": false,
       "missing_events": [],
       "extra_events": [],
       "benign": true,
@@ -110,6 +229,7 @@
       "state": "UNVERIFIED",
       "expected_state": "UNVERIFIED",
       "state_pass": true,
+      "expected_alert": false,
       "missing_events": [],
       "extra_events": [],
       "benign": true,
@@ -123,6 +243,7 @@
       "state": "UNVERIFIED",
       "expected_state": "UNVERIFIED",
       "state_pass": true,
+      "expected_alert": false,
       "missing_events": [],
       "extra_events": [],
       "benign": true,
@@ -136,6 +257,7 @@
       "state": "UNVERIFIED",
       "expected_state": "UNVERIFIED",
       "state_pass": true,
+      "expected_alert": false,
       "missing_events": [],
       "extra_events": [],
       "benign": true,
@@ -146,12 +268,179 @@
     {
       "id": "paraphrase-miss",
       "slice": "known-gap-paraphrase",
-      "state": "UNVERIFIED",
+      "state": "CHALLENGED",
       "expected_state": "CHALLENGED",
-      "state_pass": false,
-      "missing_events": [
-        "money"
-      ],
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 0
+    },
+    {
+      "id": "quoted-warning",
+      "slice": "known-gap-quotation",
+      "state": "UNVERIFIED",
+      "expected_state": "UNVERIFIED",
+      "state_pass": true,
+      "expected_alert": false,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": true,
+      "false_intervention": false,
+      "first_alert_audio_ms": null,
+      "detection_delay_ms": null
+    },
+    {
+      "id": "bank-wire",
+      "slice": "authority",
+      "state": "CHALLENGED",
+      "expected_state": "CHALLENGED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "police-gift-card",
+      "slice": "authority",
+      "state": "CHALLENGED",
+      "expected_state": "CHALLENGED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "secret-crypto",
+      "slice": "coercion",
+      "state": "COOLING_OFF",
+      "expected_state": "COOLING_OFF",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "security-code-urgent",
+      "slice": "credentials",
+      "state": "BLOCKED",
+      "expected_state": "BLOCKED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "teamviewer",
+      "slice": "remote",
+      "state": "CHALLENGED",
+      "expected_state": "CHALLENGED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "unknown-speaker-wallet",
+      "slice": "speaker",
+      "state": "CHALLENGED",
+      "expected_state": "CHALLENGED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "money-two-turn",
+      "slice": "multi-turn",
+      "state": "CHALLENGED",
+      "expected_state": "CHALLENGED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "remote-secret",
+      "slice": "coercion",
+      "state": "COOLING_OFF",
+      "expected_state": "COOLING_OFF",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "password-share",
+      "slice": "credentials",
+      "state": "BLOCKED",
+      "expected_state": "BLOCKED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "crypto-urgent",
+      "slice": "payment",
+      "state": "CHALLENGED",
+      "expected_state": "CHALLENGED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": false,
+      "false_intervention": false,
+      "first_alert_audio_ms": 1000,
+      "detection_delay_ms": 1000
+    },
+    {
+      "id": "unsupported-language-attack",
+      "slice": "known-gap-language",
+      "state": "UNVERIFIED",
+      "expected_state": "UNVERIFIED",
+      "state_pass": true,
+      "expected_alert": true,
+      "missing_events": [],
       "extra_events": [],
       "benign": false,
       "false_intervention": false,
@@ -159,19 +448,31 @@
       "detection_delay_ms": null
     },
     {
-      "id": "quoted-warning",
-      "slice": "known-gap-quotation",
-      "state": "CHALLENGED",
+      "id": "bank-discussion",
+      "slice": "benign",
+      "state": "UNVERIFIED",
       "expected_state": "UNVERIFIED",
-      "state_pass": false,
+      "state_pass": true,
+      "expected_alert": false,
       "missing_events": [],
-      "extra_events": [
-        "money",
-        "urgency"
-      ],
+      "extra_events": [],
       "benign": true,
-      "false_intervention": true,
-      "first_alert_audio_ms": 1000,
+      "false_intervention": false,
+      "first_alert_audio_ms": null,
+      "detection_delay_ms": null
+    },
+    {
+      "id": "gift-card-warning",
+      "slice": "benign-warning",
+      "state": "UNVERIFIED",
+      "expected_state": "UNVERIFIED",
+      "state_pass": true,
+      "expected_alert": false,
+      "missing_events": [],
+      "extra_events": [],
+      "benign": true,
+      "false_intervention": false,
+      "first_alert_audio_ms": null,
       "detection_delay_ms": null
     }
   ]

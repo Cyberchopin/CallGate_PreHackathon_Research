@@ -54,6 +54,18 @@ def main():
              f"生成时间：{report['generated_at']}", '',
              f"结果：{report['status']}。测试 {counts['tests']} 项；失败 {counts['failures']}；错误 {counts['errors']}；跳过 {counts['skipped']}。", '',
              '下列为固定的合成开发案例，不能当作真实诈骗识别准确率。', '',
+             (f"攻击提醒召回：{report['scenarios']['alert_recall']:.1%} "
+              f"（{report['scenarios']['alert_confusion']['tp']}/"
+              f"{report['scenarios']['alert_confusion']['tp'] + report['scenarios']['alert_confusion']['fn']}）；"
+              f"正常或明确无需提醒案例的特异度：{report['scenarios']['specificity']:.1%} "
+              f"（{report['scenarios']['alert_confusion']['tn']}/"
+              f"{report['scenarios']['alert_confusion']['tn'] + report['scenarios']['alert_confusion']['fp']}）。"),
+             '',
+             (f"95% Wilson 区间：召回 {report['scenarios']['alert_recall_wilson95'][0]:.1%}–"
+              f"{report['scenarios']['alert_recall_wilson95'][1]:.1%}；特异度 "
+              f"{report['scenarios']['specificity_wilson95'][0]:.1%}–"
+              f"{report['scenarios']['specificity_wilson95'][1]:.1%}。分母很小，仅用于开发回归。"),
+             '',
              '| 案例 | 预期状态 | 实际状态 | 证据与状态均符合 |',
              '|---|---|---|---|']
     for row in report['scenarios']['rows']:
