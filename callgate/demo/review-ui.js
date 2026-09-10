@@ -41,6 +41,17 @@ function action(id, fn) {
   };
 }
 if (role === 'participant') {
+  action('consent', async () => {
+    await api('/api/processing-consent', {granted:true});
+    el('consent-status').textContent = '本次会话已允许处理测试内容。';
+    el('status').textContent = '可以提交虚构或已同意的测试台词。';
+  });
+  action('decline', async () => {
+    await api('/api/processing-consent', {granted:false});
+    el('consent-status').textContent = '处理已停止，本次风险证据和待核验操作已清除。';
+    el('risk').textContent = '尚未分析';
+    el('status').textContent = '没有待确认请求，未执行操作。';
+  });
   action('ingest', async () => {
     const result = await api('/api/transcript', {segment_id:'s' + crypto.randomUUID(),
       text:el('transcript').value, start_ms:0, end_ms:1000, final:true});

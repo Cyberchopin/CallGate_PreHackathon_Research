@@ -16,6 +16,7 @@ class DemoWorkflow:
         self._session = secrets.token_hex(16)
         self._pending = None
         self._outcome = None
+        self._processing_consent = 'NOT_REQUESTED'
         self._lock = threading.Lock()
 
     def _invalidate(self):
@@ -26,11 +27,35 @@ class DemoWorkflow:
     def status(self):
         with self._lock:
             return {'risk_state': self._conversation.state,
+                    'processing_consent': self._processing_consent,
+                    'processing_allowed': self._processing_consent == 'GRANTED',
                     'pending': self._pending is not None,
                     'outcome': None if self._outcome is None else dict(self._outcome)}
 
+    def set_processing_consent(self, granted):
+        """Apply an explicit per-session processing choice.
+
+        Declining or withdrawing is fail-closed: current evidence and any pending
+        action are discarded. This is a product control, not a legal conclusion.
+        """
+        if type(granted) is not bool:
+            raise ValueError('invalid consent choice')
+        with self._lock:
+            if granted:
+                self._processing_consent = 'GRANTED'
+            else:
+                self._processing_consent = ('REVOKED' if self._processing_consent == 'GRANTED'
+                                            else 'DECLINED')
+                self._invalidate()
+                self._conversation = Conversation()
+                self._outcome = None
+            return {'processing_consent': self._processing_consent,
+                    'processing_allowed': self._processing_consent == 'GRANTED'}
+
     def ingest(self, transcript):
         with self._lock:
+            if self._processing_consent != 'GRANTED':
+                raise ValueError('processing consent required')
             result = self._conversation.ingest(transcript)
             if result['status'] == 'accepted':
                 self._invalidate()

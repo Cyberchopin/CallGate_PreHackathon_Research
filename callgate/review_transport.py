@@ -29,6 +29,10 @@ class Approval(StrictModel):
     approved: bool
 
 
+class ProcessingConsent(StrictModel):
+    granted: bool
+
+
 def guarded_app(origin, page):
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     host = urlsplit(origin).netloc
@@ -82,6 +86,10 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
     @app.get('/api/status', dependencies=[Depends(participant)])
     def status():
         return workflow.status()
+
+    @app.post('/api/processing-consent', dependencies=[Depends(participant)])
+    def processing_consent(body: ProcessingConsent):
+        return workflow.set_processing_consent(body.granted)
 
     @app.post('/api/transcript', dependencies=[Depends(participant)])
     def ingest(body: Transcript):

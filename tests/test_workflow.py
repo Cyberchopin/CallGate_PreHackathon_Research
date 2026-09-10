@@ -14,6 +14,7 @@ def setup():
                                            clock=lambda: clock[0])
     gate = DemoVerificationGate({'issuer': issuer.public_key()}, clock=lambda: clock[0])
     workflow = DemoWorkflow(coordinator, gate, 'reviewer')
+    workflow.set_processing_consent(True)
     workflow.ingest(Transcript(segment_id='s', text='Move your savings into the secure holding wallet.',
                                final=True, start_ms=0, end_ms=1000))
     bundle = workflow.request_confirmation(destination='demo-wallet', amount_cents=280000)
@@ -72,3 +73,24 @@ def test_superseded_requests_do_not_exhaust_pending_capacity():
     with pytest.raises(ValueError):
         workflow.complete(old)
     assert workflow.complete(sign(reviewer, bundle))['status'] == 'simulated_action_completed'
+
+
+def test_processing_requires_consent_and_withdrawal_clears_session():
+    issuer, reviewer = Ed25519PrivateKey.generate(), Ed25519PrivateKey.generate()
+    coordinator = ConfirmationCoordinator('issuer', issuer, {'reviewer': reviewer.public_key()})
+    gate = DemoVerificationGate({'issuer': issuer.public_key()})
+    workflow = DemoWorkflow(coordinator, gate, 'reviewer')
+    segment = Transcript(segment_id='s', text='Send money right now.', final=True,
+                         start_ms=0, end_ms=1000)
+    with pytest.raises(ValueError, match='consent'):
+        workflow.ingest(segment)
+    assert workflow.set_processing_consent(True)['processing_allowed'] is True
+    workflow.ingest(segment)
+    workflow.request_confirmation(destination='demo-wallet', amount_cents=100)
+    result = workflow.set_processing_consent(False)
+    assert result == {'processing_consent': 'REVOKED', 'processing_allowed': False}
+    assert workflow.status()['risk_state'] == 'UNVERIFIED'
+    assert workflow.status()['pending'] is False
+    assert workflow.pending_confirmation() is None
+    with pytest.raises(ValueError, match='consent'):
+        workflow.ingest(segment)

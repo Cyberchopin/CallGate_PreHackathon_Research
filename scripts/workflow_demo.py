@@ -12,6 +12,7 @@ def run():
     workflow = DemoWorkflow(
         ConfirmationCoordinator('demo', issuer, {'reviewer': reviewer.public_key()}),
         DemoVerificationGate({'demo': issuer.public_key()}), 'reviewer')
+    workflow.set_processing_consent(True)
     risk = workflow.ingest(Transcript(segment_id='s1', final=True, start_ms=0, end_ms=1000,
         text='Move your savings into the secure holding wallet.'))
     bundle = workflow.request_confirmation(destination='demo-wallet', amount_cents=280000)

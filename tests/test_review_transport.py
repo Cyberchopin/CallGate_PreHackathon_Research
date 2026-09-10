@@ -37,6 +37,7 @@ def demo():
     )
     gate = DemoVerificationGate({"issuer": issuer_key.public_key()}, clock=lambda: clock[0])
     workflow = DemoWorkflow(coordinator, gate, "reviewer")
+    workflow.set_processing_consent(True)
     broker_app = create_broker_app(workflow, PARTICIPANT_TOKEN, REVIEWER_TOKEN,
                                    origin=BROKER_ORIGIN)
     reviewer_app = create_reviewer_app(
@@ -101,6 +102,21 @@ def test_no_confirmation_cannot_be_approved(demo):
     assert response.status_code == 409
 
 
+def test_withdrawal_over_transport_clears_evidence_and_pending_action(demo):
+    request_action(demo)
+    response = demo.broker.post('/api/processing-consent', json={'granted': False},
+                                headers=bearer(PARTICIPANT_TOKEN))
+    assert response.status_code == 200
+    assert response.json()['processing_consent'] == 'REVOKED'
+    status = demo.broker.get('/api/status', headers=bearer(PARTICIPANT_TOKEN)).json()
+    assert status['risk_state'] == 'UNVERIFIED'
+    assert status['processing_allowed'] is False
+    assert status['pending'] is False
+    blocked = demo.broker.post('/api/transcript', json=SEGMENT,
+                               headers=bearer(PARTICIPANT_TOKEN))
+    assert blocked.status_code == 409
+
+
 @pytest.mark.parametrize("client_name,method,route,body", [
     ("broker", "GET", "/api/review/pending", None),
     ("broker", "POST", "/api/review/decision", {}),
@@ -116,6 +132,7 @@ def test_participant_token_cannot_access_reviewer_routes(demo, client_name, meth
 @pytest.mark.parametrize("route,body", [
     ("/api/transcript", SEGMENT),
     ("/api/request", {"destination": "demo", "amount_cents": 100}),
+    ("/api/processing-consent", {"granted": True}),
 ])
 def test_reviewer_token_cannot_act_as_participant(demo, route, body):
     response = demo.broker.post(route, json=body, headers=bearer(REVIEWER_TOKEN))

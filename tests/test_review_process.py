@@ -53,6 +53,9 @@ def test_two_process_approval_then_unavailable_reviewer():
         reviewer_socket.close()
         wait_ready(broker_origin, '/api/status', participant_token, children)
         wait_ready(reviewer_origin, '/api/pending', reviewer_token, children)
+        consent = call(broker_origin, '/api/processing-consent', participant_token,
+                       {'granted': True})
+        assert consent['processing_allowed'] is True
         risk = call(broker_origin, '/api/transcript', participant_token, dict(segment_id='s1',
             text='Move your savings into the secure holding wallet.', start_ms=0, end_ms=1000, final=True))
         assert risk['state'] == 'CHALLENGED'
