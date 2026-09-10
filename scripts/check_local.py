@@ -21,7 +21,8 @@ def main():
               "python":sys.version.split()[0]}
     # Bind this report to source bytes, including uncommitted files.
     paths = sorted([*root.glob('callgate/**/*.py'), *root.glob('tests/**/*.py'),
-                    *root.glob('scripts/*.py'), root/'pyproject.toml'])
+                    *root.glob('scripts/*.py'), *root.glob('callgate/demo/*'),
+                    *root.glob('*.ps1'), root/'pyproject.toml'])
     report['source_sha256'] = {p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in paths}
     report['scenarios'] = evaluate(root/'scambench/scenarios.jsonl')
@@ -30,6 +31,7 @@ def main():
     with TemporaryDirectory(prefix='callgate-check-') as directory:
         xml = Path(directory)/'tests.xml'
         tests = subprocess.run([sys.executable,'-m','pytest','-q','-p','no:cacheprovider',
+                                '--basetemp',str(Path(directory)/'pytest'),
                                 '--junitxml',str(xml)], cwd=root)
         counts = dict(tests=0, failures=0, errors=0, skipped=0)
         if xml.exists():

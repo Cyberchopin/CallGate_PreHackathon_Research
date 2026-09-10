@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CallGate · 核验端</title><link rel="stylesheet" href="/review-ui.css">
+<main data-role="reviewer">
+<h1>CallGate 核验端</h1>
+<p>请通过原本可信的渠道核实目标与请求。此页面只批准演示操作，不证明来电者身份。</p>
+<button id="refresh">读取当前请求</button>
+<section><h2>核对本次操作</h2>
+<p id="operation">尚未读取请求</p><p id="expiry"></p>
+<button id="approve" disabled>批准这一次模拟操作</button>
+<button id="deny" disabled>拒绝</button>
+<p>确认有效期两分钟。内容变化、过期或已使用时，旧确认不能执行操作。</p>
+</section>
+<p id="status" role="status">请使用启动程序给出的核验端链接。</p>
+<p>这是单独运行的本地签名服务。持有核验链接即获得本次演示的核验权限，尚无真人身份登记。</p>
+</main><script src="/review-ui.js" defer></script></html>

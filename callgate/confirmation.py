@@ -83,3 +83,8 @@ class ConfirmationCoordinator:
                 session_id=request.session_id, resource=request.resource, now=now)
             del self._pending[request.request_id]
             return credential
+
+    def cancel(self, request_id):
+        """Trusted orchestration discards superseded confirmation requests."""
+        with self._lock:
+            self._pending.pop(request_id, None)

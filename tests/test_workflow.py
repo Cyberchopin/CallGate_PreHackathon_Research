@@ -62,3 +62,13 @@ def test_denial_and_cross_session():
     with pytest.raises(ValueError):
         other.complete(sign(reviewer, bundle))
     assert workflow.complete(sign(reviewer, bundle, False))['status'] == 'reviewer_denied'
+
+
+def test_superseded_requests_do_not_exhaust_pending_capacity():
+    workflow, reviewer, bundle, _ = setup()
+    old = sign(reviewer, bundle)
+    for _ in range(1001):
+        bundle = workflow.request_confirmation(destination='demo-wallet', amount_cents=280000)
+    with pytest.raises(ValueError):
+        workflow.complete(old)
+    assert workflow.complete(sign(reviewer, bundle))['status'] == 'simulated_action_completed'

@@ -1,0 +1,122 @@
+"""Start two ephemeral loopback processes. No cloud call or persistent key file.
+
+Run: python -m scripts.start_review_demo
+Only the reviewer child generates/holds its private key. Startup URLs are local
+role capabilities; keep the reviewer URL away from the participant browser.
+"""
+import argparse
+import json
+import multiprocessing as mp
+import secrets
+import socket
+import time
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.error import HTTPError
+
+import uvicorn
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from callgate.confirmation import ConfirmationCoordinator
+from callgate.review_transport import create_broker_app, create_reviewer_app
+from callgate.verification import DemoVerificationGate
+from callgate.workflow import DemoWorkflow
+
+
+class NoRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _reviewer(public_pipe, broker_origin, reviewer_origin, reviewer_token, listener):
+    key = Ed25519PrivateKey.generate()
+    public_pipe.send_bytes(key.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw))
+    public_pipe.close()
+    opener = build_opener(NoRedirects)
+
+    def call(path, body=None):
+        request = Request(broker_origin + path,
+            data=None if body is None else json.dumps(body).encode(),
+            headers={'Authorization': 'Bearer ' + reviewer_token, 'Content-Type': 'application/json'})
+        try:
+            with opener.open(request, timeout=5) as response:
+                return json.load(response)
+        except HTTPError as error:
+            if error.code == 409:
+                raise ValueError('confirmation no longer valid') from None
+            raise
+
+    app = create_reviewer_app(key, reviewer_token,
+        lambda: call('/api/review/pending'),
+        lambda decision: call('/api/review/decision', decision.model_dump()), origin=reviewer_origin)
+    uvicorn.Server(uvicorn.Config(app, access_log=False, log_level='warning')).run(sockets=[listener])
+
+
+def _broker(public_bytes, participant_token, reviewer_token, origin, listener):
+    issuer = Ed25519PrivateKey.generate()
+    coordinator = ConfirmationCoordinator('local-demo', issuer,
+        {'local-reviewer': Ed25519PublicKey.from_public_bytes(public_bytes)})
+    workflow = DemoWorkflow(coordinator, DemoVerificationGate({'local-demo': issuer.public_key()}),
+                            'local-reviewer')
+    app = create_broker_app(workflow, participant_token, reviewer_token, origin=origin)
+    uvicorn.Server(uvicorn.Config(app, access_log=False, log_level='warning')).run(sockets=[listener])
+
+
+def _bind(port):
+    sock = socket.socket()
+    try:
+        sock.bind(('127.0.0.1', port))
+        sock.listen(128)
+        return sock
+    except BaseException:
+        sock.close()
+        raise
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--participant-port', type=int, default=8766)
+    parser.add_argument('--reviewer-port', type=int, default=8767)
+    args = parser.parse_args()
+    sockets, children = [], []
+    try:
+        sockets.append(_bind(args.participant_port))
+        sockets.append(_bind(args.reviewer_port))
+        broker_origin = 'http://127.0.0.1:' + str(sockets[0].getsockname()[1])
+        reviewer_origin = 'http://127.0.0.1:' + str(sockets[1].getsockname()[1])
+        participant_token, reviewer_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+        context = mp.get_context('spawn')
+        receive, send = context.Pipe(duplex=False)
+        reviewer = context.Process(target=_reviewer,
+            args=(send, broker_origin, reviewer_origin, reviewer_token, sockets[1]))
+        reviewer.start()
+        children.append(reviewer)
+        send.close()
+        if not receive.poll(15):
+            raise RuntimeError('reviewer startup failed')
+        public_bytes = receive.recv_bytes()
+        receive.close()
+        broker = context.Process(target=_broker,
+            args=(public_bytes, participant_token, reviewer_token, broker_origin, sockets[0]))
+        broker.start()
+        children.append(broker)
+        # Give users capabilities on their own terminal, never in public files.
+        print('Participant: ' + broker_origin + '/#token=' + participant_token, flush=True)
+        print('Reviewer (keep separate): ' + reviewer_origin + '/#token=' + reviewer_token, flush=True)
+        print('Local demo only. Keys expire on restart. Ctrl+C stops both processes.', flush=True)
+        while all(child.is_alive() for child in children):
+            time.sleep(0.25)
+        raise RuntimeError('one service stopped; restart both services')
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        for child in children:
+            if child.is_alive():
+                child.terminate()
+            child.join(timeout=5)
+        for sock in sockets:
+            sock.close()
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -2,7 +2,7 @@
 
 A local voice-risk advisory prototype for requests to move money into a "safe account".
 
-**Current boundary:** CallGate transcribes test speech and displays risk evidence and advice. Real human identity enrollment, a trusted confirmation channel, receipt key lifecycle/storage, and enforcement over real tools are not implemented. The microphone demo cannot block a bank transfer or control a phone call.
+**Current boundary:** CallGate transcribes test speech and displays risk evidence and advice. A separate local text-replay demo now supports explicit reviewer confirmation and a simulated action. Real human identity enrollment, remote trusted reviewer transport, receipt key lifecycle/storage, and enforcement over real tools are not implemented. The microphone demo cannot block a bank transfer or control a phone call.
 
 ## Try the current prototype
 
@@ -28,6 +28,18 @@ These are expected baseline behaviors, not proof of scam detection accuracy. Rec
 - The four implemented audio states are `UNVERIFIED`, `CHALLENGED`, `COOLING_OFF`, and `BLOCKED`. All provide advice; `BLOCKED` means a warning against sharing sensitive information, not an external action block.
 - NetworkX projects current evidence. Separate test components provide Ed25519 confirmation/receipt signatures and a simulated gate with SQLite replay protection. They are not connected to a trusted human confirmation flow in the microphone demo.
 
+## Try the local confirmation path
+
+Run `./Start-Review-Demo.ps1` in PowerShell, or `python -m scripts.start_review_demo` in the complete environment. The launcher prints two private entry links: participant on port 8766 and reviewer on 8767. Open each complete link, including its fragment, in the appropriate browser window. Nothing is installed and no cloud API is called.
+
+1. Participant: analyze the prefilled safe-account sentence, then submit the fictional amount and destination.
+2. Reviewer: read the current request, check the exact amount and destination, then explicitly approve or deny.
+3. Participant: refresh the result. Approval permits one simulated action only. New transcript content invalidates pending confirmation; secrecy/credential states prevent a new request.
+
+Each role has a different bearer capability. The reviewer private key is generated only inside the reviewer process; the participant backend receives its public key. The reviewer checks the displayed operation against its signed digest before signing. Both processes and the host are trusted; the participant backend still owns the policy and issuer key. Possession of the reviewer link is the demo's authorization mechanism, not proof of human identity. Do not give that link to the participant.
+
+Keys and pending state are ephemeral; restart invalidates old entries. This launcher uses an in-memory replay gate and one session per startup. It is a text-replay demo, not yet connected to the microphone stream. Tests exercise real loopback HTTP across both processes, including repeat approval rejection and reviewer unavailability.
+
 ## Reuse and project contribution
 
 AssemblyAI supplies streaming transcription; Silero and Pipecat integrations provide optional voice processing components; NetworkX, cryptography and SQLite supply graph, signature and persistence primitives. CallGate adds revision-aware evidence handling, cross-turn action/secrecy rules, advisory policy, and tests of scoped credentials and replay rejection.
@@ -38,7 +50,7 @@ This is an integration prototype. Comparative superiority over other projects ha
 
 The [local report](scambench/LOCAL_RESULTS.md) records regression tests and 25 same-author synthetic development cases. These do not estimate real-world accuracy. The private evaluation structure exists; an independently authored evaluation dataset is still needed. Engine timings and scripted audio timestamps do not establish live speech-to-alert latency.
 
-Next: connect one safe-account scenario to a pre-enrolled reviewer and a demo-only protected action. Show valid confirmation, forged confirmation, expiry, replay and unavailable confirmation outcomes before expanding scope. Measure live alert latency and actual service cost for that path.
+Next: connect the microphone stream to the scoped confirmation workflow, introduce real reviewer enrollment, and measure live alert latency and actual service cost for that path.
 
 ## Reference material
 
