@@ -125,6 +125,10 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
     def processing_consent(body: ProcessingConsent):
         return workflow.set_processing_consent(body.granted)
 
+    @app.post('/api/session/reset', dependencies=[Depends(participant)])
+    def reset_session():
+        return workflow.reset_session()
+
     @app.post('/api/transcript', dependencies=[Depends(participant)])
     def ingest(body: Transcript):
         try:

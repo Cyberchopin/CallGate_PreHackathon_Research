@@ -8,6 +8,7 @@
 <section><h2>1. 取得处理同意</h2>
 <p>本演示只使用虚构或已同意的测试内容。若对方拒绝或撤回，停止处理并清除本次会话的风险证据和待核验操作。</p>
 <button id="consent">已明确同意，开始测试</button><button id="decline">拒绝/撤回并清除</button>
+<button id="new-session">结束本场并开始新的独立测试</button>
 <p id="consent-status" role="status">尚未取得本次会话的处理同意。</p></section>
 <section><h2>2. 实时语音或文本备用输入</h2>
 <p>实时语音使用 AssemblyAI。请只朗读虚构测试台词；文本分析用于断网或评审备用。当前风险规则支持有限的英文表达，转录成功不等于一定触发风险提醒。</p>
@@ -23,6 +24,7 @@
 <label for="transcript">英文测试台词</label>
 <textarea id="transcript" rows="3">Move your savings into the secure holding wallet.</textarea>
 <button id="ingest">使用文本备用输入</button><p id="risk" role="status">尚未分析</p>
+<p id="policy-explanation">只有检测到可二次确认的高影响操作时，系统才生成挑战码。</p>
 <p>继续提交新内容会使待确认请求失效。可提交 “Do not tell anyone.” 检查保密施压时的拒绝。</p>
 </section>
 <section><h2>3. 申请一次演示操作</h2>

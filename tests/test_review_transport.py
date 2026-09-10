@@ -213,6 +213,7 @@ def test_participant_token_cannot_access_reviewer_routes(demo, client_name, meth
     ("/api/transcript", SEGMENT),
     ("/api/request", {"destination": "demo", "amount_cents": 100}),
     ("/api/processing-consent", {"granted": True}),
+    ("/api/session/reset", {}),
 ])
 def test_reviewer_token_cannot_act_as_participant(demo, route, body):
     response = demo.broker.post(route, json=body, headers=bearer(REVIEWER_TOKEN))

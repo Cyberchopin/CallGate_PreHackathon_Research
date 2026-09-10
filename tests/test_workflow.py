@@ -110,3 +110,17 @@ def test_processing_requires_consent_and_withdrawal_clears_session():
     assert workflow.pending_confirmation() is None
     with pytest.raises(ValueError, match='consent'):
         workflow.ingest(segment)
+
+
+def test_new_session_invalidates_old_confirmation_and_requires_fresh_consent():
+    workflow, reviewer, bundle, _ = setup()
+    old_decision = sign(reviewer, bundle)
+    reset = workflow.reset_session()
+    assert reset['risk_state'] == 'UNVERIFIED'
+    assert reset['processing_consent'] == 'NOT_REQUESTED'
+    with pytest.raises(ValueError):
+        workflow.complete(old_decision,
+                          challenge_response=bundle['out_of_band_challenge'])
+    with pytest.raises(ValueError, match='consent'):
+        workflow.ingest(Transcript(segment_id='new', text='Hello', final=True,
+                                   start_ms=0, end_ms=1000))

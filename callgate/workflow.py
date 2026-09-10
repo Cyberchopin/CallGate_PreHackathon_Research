@@ -52,6 +52,18 @@ class DemoWorkflow:
             return {'processing_consent': self._processing_consent,
                     'processing_allowed': self._processing_consent == 'GRANTED'}
 
+    def reset_session(self):
+        """End the current scenario and require fresh consent for a new one."""
+        with self._lock:
+            self._invalidate()
+            self._conversation = Conversation()
+            self._session = secrets.token_hex(16)
+            self._outcome = None
+            self._processing_consent = 'NOT_REQUESTED'
+            return {'risk_state': self._conversation.state,
+                    'processing_consent': self._processing_consent,
+                    'processing_allowed': False, 'pending': False, 'outcome': None}
+
     def ingest(self, transcript):
         with self._lock:
             if self._processing_consent != 'GRANTED':

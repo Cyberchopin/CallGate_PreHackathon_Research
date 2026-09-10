@@ -57,6 +57,11 @@ if (role === 'participant') {
   const showRisk = result => {
     el('challenge').textContent = '';
     el('risk').textContent = stateNames[result.state] + ' · 风险参考分 ' + result.score + '/100';
+    const explanations={UNVERIFIED:'没有检测到需要批准的高影响操作，因此不生成挑战码。',
+      CHALLENGED:'检测到可二次确认的高影响操作；可以提交并生成一次性挑战码。',
+      COOLING_OFF:'高影响请求伴随保密施压；必须暂停，不能通过确认立即放行。',
+      BLOCKED:'检测到密码或验证码请求；这类操作不能通过确认放行。'};
+    el('policy-explanation').textContent=explanations[result.state];
     el('status').textContent = '风险状态已更新；先前的待确认请求已失效。';
   };
   const refreshMetrics = async () => {
@@ -81,6 +86,15 @@ if (role === 'participant') {
     el('challenge').textContent = '';
     el('risk').textContent = '尚未分析';
     el('status').textContent = '没有待确认请求，未执行操作。';
+  });
+  action('new-session', async () => {
+    if (audio) finishAudio('本场测试已结束，麦克风已关闭。');
+    await api('/api/session/reset', {});
+    el('consent-status').textContent='新测试尚未取得处理同意。';
+    el('challenge').textContent=''; el('risk').textContent='尚未分析';
+    el('live-transcript').textContent='尚无实时转录。';
+    el('policy-explanation').textContent='请重新取得同意后开始新的独立测试。';
+    el('status').textContent='新会话已创建；旧证据、挑战和结果均已清除。';
   });
   action('ingest', async () => {
     const result = await api('/api/transcript', {segment_id:'s' + crypto.randomUUID(),
