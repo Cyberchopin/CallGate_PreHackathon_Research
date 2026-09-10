@@ -59,6 +59,16 @@ if (role === 'participant') {
     el('risk').textContent = stateNames[result.state] + ' · 风险参考分 ' + result.score + '/100';
     el('status').textContent = '风险状态已更新；先前的待确认请求已失效。';
   };
+  const refreshMetrics = async () => {
+    const m=await api('/api/metrics/summary');
+    if (!m.sessions) { el('metrics-summary').textContent='本次服务启动后尚无完整测试。'; return; }
+    const pct=(100*m.failure_rate).toFixed(1)+'%';
+    const latency=m.alert_samples ? '提醒代理值 P50 '+m.alert_proxy_p50_ms.toFixed(1)+' ms，P95 '+
+      m.alert_proxy_p95_ms.toFixed(1)+' ms' : '尚无风险提醒样本';
+    el('metrics-summary').textContent='本次启动：'+m.sessions+' 次，完成 '+m.completed+'，失败 '+m.failed+
+      '，失败率 '+pct+'；'+latency+'。';
+  };
+  action('refresh-metrics', refreshMetrics);
   action('consent', async () => {
     await api('/api/processing-consent', {granted:true});
     el('consent-status').textContent = '本次会话已允许处理测试内容。';
@@ -98,7 +108,7 @@ if (role === 'participant') {
         if (message.error) { finishAudio(message.error === 'processing_consent_required'
           ? '请先明确允许处理本次测试内容。' : message.error === 'assemblyai_not_configured'
           ? '语音服务尚未配置；可使用文本备用输入。' : '语音服务连接失败；可使用文本备用输入。'); return; }
-        if (message.type === 'completed') { finishAudio('语音测试完成。'); return; }
+        if (message.type === 'completed') { finishAudio('语音测试完成。'); refreshMetrics().catch(()=>{}); return; }
         if (message.metrics) {
           const m=message.metrics;
           const cost=m.estimated_asr_cost_usd === null ? '未配置 ASR 单价' : 'ASR 估算 $'+m.estimated_asr_cost_usd;

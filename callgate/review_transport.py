@@ -19,6 +19,7 @@ from pydantic import Field
 
 from .confirmation import ConfirmationRequest, ReviewerDecision, decision_bytes
 from .assemblyai import stream_pcm
+from .live_metrics import LiveMetrics
 from .models import StrictModel, Transcript
 
 ASSETS = Path(__file__).parent / 'demo'
@@ -108,11 +109,16 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
     if not participant_token or not reviewer_token or participant_token == reviewer_token:
         raise ValueError('distinct role credentials required')
     app = guarded_app(origin, 'participant.html')
+    live_metrics = LiveMetrics()
     participant, reviewer = bearer(participant_token), bearer(reviewer_token)
 
     @app.get('/api/status', dependencies=[Depends(participant)])
     def status():
         return workflow.status()
+
+    @app.get('/api/metrics/summary', dependencies=[Depends(participant)])
+    def metrics_summary():
+        return live_metrics.summary()
 
     @app.post('/api/processing-consent', dependencies=[Depends(participant)])
     def processing_consent(body: ProcessingConsent):
@@ -149,6 +155,9 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
             started = time.perf_counter()
             audio_bytes = 0
             asr_rate = configured_asr_rate()
+            first_alert_proxy_ms = None
+            risk_engine_samples = []
+            measurement_recorded = False
 
             async def chunks():
                 nonlocal audio_bytes
@@ -165,6 +174,7 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                         raise ValueError('expected PCM bytes or stop')
 
             async def on_segment(segment):
+                nonlocal first_alert_proxy_ms
                 risk_started = time.perf_counter()
                 result = workflow.ingest(segment)
                 risk_ms = (time.perf_counter() - risk_started) * 1000
@@ -182,10 +192,17 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
                         round((audio_ms/3_600_000)*asr_rate, 8)),
                     'cost_scope': 'asr_only_configured_rate',
                 }
+                risk_engine_samples.append(risk_ms)
+                if result['state'] != 'UNVERIFIED' and first_alert_proxy_ms is None:
+                    first_alert_proxy_ms = metrics['end_of_speech_to_alert_proxy_ms']
                 await ws.send_json({'transcript': segment.model_dump(), 'risk': result,
                                     'metrics': metrics})
 
             await asyncio.wait_for(stream_pcm(chunks(), on_segment), timeout=1800)
+            live_metrics.record(completed=True, audio_ms=audio_bytes / 32,
+                first_alert_proxy_ms=first_alert_proxy_ms,
+                risk_engine_ms=max(risk_engine_samples) if risk_engine_samples else None)
+            measurement_recorded = True
             await ws.send_json({'type': 'completed', 'session_metrics': {
                 'audio_received_ms': round(audio_bytes / 32, 1),
                 'estimated_asr_cost_usd': (None if asr_rate is None else
@@ -194,8 +211,15 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
             }})
             await ws.close()
         except WebSocketDisconnect:
-            pass
+            if 'started' in locals() and not measurement_recorded:
+                live_metrics.record(completed=False, audio_ms=audio_bytes / 32,
+                    first_alert_proxy_ms=first_alert_proxy_ms,
+                    risk_engine_ms=max(risk_engine_samples) if risk_engine_samples else None)
         except Exception:
+            if 'started' in locals() and not measurement_recorded:
+                live_metrics.record(completed=False, audio_ms=audio_bytes / 32,
+                    first_alert_proxy_ms=first_alert_proxy_ms,
+                    risk_engine_ms=max(risk_engine_samples) if risk_engine_samples else None)
             try:
                 await ws.send_json({'error': 'audio_stream_failed',
                                     'protected_actions_allowed': False})

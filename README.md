@@ -43,6 +43,8 @@ Keys and pending state are ephemeral; restart invalidates old entries. This laun
 
 During a live run, the participant page shows received audio duration, local risk-engine time, and an observed end-of-speech-to-alert proxy. The proxy combines provider timestamps with the local server clock and is not an SLA measurement. Cost is shown only when `CALLGATE_ASR_USD_PER_HOUR` is set from the operator's current provider terms; otherwise it reports that the rate is unconfigured. The estimate covers ASR only. This path has no LLM, TTS, or SIP charge.
 
+The page also aggregates up to 100 sessions from the current server process: completed/failed counts, failure rate, and alert-proxy P50/P95. It retains numeric measurements only, without audio, transcript text, challenge codes, or session identifiers. Restarting the launcher clears the sample. Small, same-machine runs remain development evidence rather than production reliability claims.
+
 ## Reuse and project contribution
 
 AssemblyAI supplies streaming transcription; Silero and Pipecat integrations provide optional voice processing components; NetworkX, cryptography and SQLite supply graph, signature and persistence primitives. CallGate adds revision-aware evidence handling, cross-turn action/secrecy rules, advisory policy, and tests of scoped credentials and replay rejection.

@@ -92,6 +92,10 @@ def test_audio_ingress_shares_the_confirmation_workflow(demo, monkeypatch):
         completed = ws.receive_json()
         assert completed['type'] == 'completed'
         assert completed['session_metrics']['cost_scope'] == 'asr_only_configured_rate'
+    summary = demo.broker.get('/api/metrics/summary',
+                              headers=bearer(PARTICIPANT_TOKEN)).json()
+    assert summary['sessions'] == 1 and summary['completed'] == 1
+    assert summary['failed'] == 0 and summary['alert_samples'] == 1
     bundle = demo.broker.post('/api/request', json={
         'destination': 'demo-wallet', 'amount_cents': 100,
     }, headers=bearer(PARTICIPANT_TOKEN)).json()
