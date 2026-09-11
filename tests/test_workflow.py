@@ -13,7 +13,7 @@ def setup():
     coordinator = ConfirmationCoordinator('issuer', issuer, {'reviewer': reviewer.public_key()},
                                            clock=lambda: clock[0])
     gate = DemoVerificationGate({'issuer': issuer.public_key()}, clock=lambda: clock[0])
-    workflow = DemoWorkflow(coordinator, gate, 'reviewer')
+    workflow = DemoWorkflow(coordinator, gate, 'reviewer', request_clock=lambda: clock[0])
     workflow.set_processing_consent(True)
     workflow.ingest(Transcript(segment_id='s', text='Move your savings into the secure holding wallet.',
                                final=True, start_ms=0, end_ms=1000))
@@ -69,9 +69,10 @@ def test_denial_and_cross_session():
 
 
 def test_superseded_requests_do_not_exhaust_pending_capacity():
-    workflow, reviewer, bundle, _ = setup()
+    workflow, reviewer, bundle, clock = setup()
     old = sign(reviewer, bundle)
     for _ in range(1001):
+        clock[0] += 121
         bundle = workflow.request_confirmation(destination='demo-wallet', amount_cents=280000)
     with pytest.raises(ValueError):
         workflow.complete(old, challenge_response='000000')
@@ -82,12 +83,13 @@ def test_superseded_requests_do_not_exhaust_pending_capacity():
 def test_approval_requires_challenge_and_three_failures_cancel_request():
     workflow, reviewer, bundle, _ = setup()
     decision = sign(reviewer, bundle)
+    wrong = '000000' if bundle['out_of_band_challenge'] != '000000' else '111111'
     for _ in range(2):
         with pytest.raises(ValueError, match='challenge'):
-            workflow.complete(decision, challenge_response='000000')
+            workflow.complete(decision, challenge_response=wrong)
         assert workflow.status()['pending'] is True
     with pytest.raises(ValueError, match='challenge'):
-        workflow.complete(decision, challenge_response='000000')
+        workflow.complete(decision, challenge_response=wrong)
     assert workflow.status()['pending'] is False
 
 

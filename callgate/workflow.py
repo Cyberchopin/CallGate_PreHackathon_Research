@@ -3,14 +3,23 @@ import hashlib
 import json
 import secrets
 import threading
+import time
+import math
+from collections import deque
 
 from .engine import Conversation, WEIGHTS
 from .evidence_graph import evidence_graph
 from .receipt import issue_receipt, current_evidence
 
 
+class ChallengeRateLimited(ValueError):
+    def __init__(self, retry_after):
+        super().__init__('challenge issuance rate exceeded')
+        self.retry_after = retry_after
+
+
 class DemoWorkflow:
-    def __init__(self, coordinator, gate, reviewer):
+    def __init__(self, coordinator, gate, reviewer, *, request_clock=time.monotonic):
         self._coordinator = coordinator
         self._gate = gate
         self._reviewer = reviewer
@@ -21,6 +30,8 @@ class DemoWorkflow:
         self._processing_consent = 'NOT_REQUESTED'
         self._generation = 0
         self._lock = threading.Lock()
+        self._request_clock = request_clock
+        self._issued = deque()
 
     def _invalidate(self):
         if self._pending is not None:
@@ -122,6 +133,17 @@ class DemoWorkflow:
         with self._lock:
             if self._conversation.state != 'CHALLENGED':
                 raise ValueError('policy requires a challenged conversation')
+            now = self._request_clock()
+            while self._issued and self._issued[0] <= now - 3600:
+                self._issued.popleft()
+            recent = [t for t in self._issued if t > now - 60]
+            waits = []
+            if len(recent) >= 5:
+                waits.append(recent[0] + 60 - now)
+            if len(self._issued) >= 30:
+                waits.append(self._issued[0] + 3600 - now)
+            if waits:
+                raise ChallengeRateLimited(max(1, math.ceil(max(waits))))
             operation = dict(destination=destination, amount_cents=amount_cents, currency='USD')
             resource = hashlib.sha256(json.dumps(operation, sort_keys=True).encode()).hexdigest()
             self._invalidate()
@@ -131,6 +153,7 @@ class DemoWorkflow:
             challenge_digest = hashlib.sha256(
                 (self._session + request.request_id + challenge).encode()).digest()
             self._pending = (request, operation, challenge_digest, 0)
+            self._issued.append(now)
             self._outcome = None
             return {'request': request, 'operation': dict(operation),
                     'out_of_band_challenge': challenge}

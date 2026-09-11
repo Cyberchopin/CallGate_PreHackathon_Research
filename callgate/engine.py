@@ -8,13 +8,13 @@ PATTERNS = {
     "urgency": r"\b(?:right now|immediately|tonight|urgent|within \d+ minutes|arrest|enrollment.{0,15}cancelled)\b",
     "secrecy": r"\b(?:don't tell|do not tell|keep (?:this|it) secret|between us|tell no one)\b",
     "money": r"\b(?:send|transfer|wire|pay|zelle|buy)\b.{0,50}\b(?:money|\d[\d,]*|gift cards?|bitcoin|crypto|dollars)\b",
-    "credentials": r"\b(?:tell|read|share|send|give)\b.{0,40}\b(?:otp|password|verification code|one.time code|security code)\b",
+    "credentials": r"\b(?:tell|read|share|send|give|provide|reveal|disclose|forward|enter|type|what is)\b[^.!?;\n]{0,40}\b(?:otp|password|passcode|pin|verification code|one.time (?:code|password)|security code|authentication code|six.digit code|6.digit code|2fa code)\b",
     "remote_access": r"\b(?:install|download|open)\b.{0,30}\b(?:anydesk|teamviewer|remote access)\b",
     "injection": r"\b(?:ignore (?:all |previous )?(?:rules|instructions)|mark (?:me |this )?verified|disable (?:guardian|safety))\b",
 }
 WEIGHTS = dict(authority=10, urgency=15, secrecy=20, money=35, credentials=60, remote_access=45, injection=30)
 HIGH_IMPACT = {"money", "credentials", "remote_access"}
-EXTRACTOR_VERSION = "rules-en-v3"
+EXTRACTOR_VERSION = "rules-en-v4"
 
 
 def educational_spans(text):

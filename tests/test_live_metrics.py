@@ -3,6 +3,23 @@ import pytest
 from callgate.live_metrics import LiveMetrics
 
 
+def test_automatic_persistence_survives_reopen_and_remains_bounded(tmp_path):
+    database = tmp_path / 'metrics.sqlite3'
+    metrics = LiveMetrics(capacity=2, database=database)
+    for value in range(3):
+        metrics.record(outcome='completed', audio_ms=value,
+                       first_alert_proxy_ms=None, risk_engine_ms=.1)
+    restored = LiveMetrics(capacity=2, database=database)
+    assert restored.summary()['sessions'] == 2
+    assert restored.summary()['total_recorded'] == 3
+    assert restored.summary()['evicted'] == 1
+    assert restored.summary()['scope'] == 'persistent_bounded_no_content'
+    assert [r['audio_ms'] for r in restored.export()['samples']] == [1, 2]
+    restored.record(outcome='failed', audio_ms=4,
+                    first_alert_proxy_ms=None, risk_engine_ms=None)
+    assert LiveMetrics(capacity=2, database=database).summary()['total_recorded'] == 4
+
+
 def test_empty_and_percentile_summary_without_content_fields():
     metrics = LiveMetrics(capacity=3)
     assert metrics.summary()['failure_rate'] is None

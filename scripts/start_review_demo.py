@@ -60,7 +60,8 @@ def _broker(public_bytes, participant_token, reviewer_token, origin, listener):
         {'local-reviewer': Ed25519PublicKey.from_public_bytes(public_bytes)})
     workflow = DemoWorkflow(coordinator, DemoVerificationGate({'local-demo': issuer.public_key()}),
                             'local-reviewer')
-    app = create_broker_app(workflow, participant_token, reviewer_token, origin=origin)
+    app = create_broker_app(workflow, participant_token, reviewer_token, origin=origin,
+        metrics_database=Path(__file__).resolve().parents[1] / 'callgate-metrics.sqlite3')
     uvicorn.Server(uvicorn.Config(app, access_log=False, log_level='warning')).run(sockets=[listener])
 
 

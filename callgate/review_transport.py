@@ -23,6 +23,7 @@ from cryptography.hazmat.primitives import serialization
 from .confirmation import ConfirmationRequest, ReviewerDecision, decision_bytes
 from .assemblyai import stream_pcm
 from .live_metrics import LiveMetrics
+from .workflow import ChallengeRateLimited
 from .models import StrictModel, Transcript
 
 ASSETS = Path(__file__).parent / 'demo'
@@ -108,11 +109,11 @@ def configured_asr_rate():
     return rate if math.isfinite(rate) and 0 <= rate <= 10_000 else None
 
 
-def create_broker_app(workflow, participant_token, reviewer_token, *, origin='http://127.0.0.1:8766'):
+def create_broker_app(workflow, participant_token, reviewer_token, *, origin='http://127.0.0.1:8766', metrics_database=None):
     if not participant_token or not reviewer_token or participant_token == reviewer_token:
         raise ValueError('distinct role credentials required')
     app = guarded_app(origin, 'participant.html')
-    live_metrics = LiveMetrics()
+    live_metrics = LiveMetrics(database=metrics_database)
     receipt_key = Ed25519PrivateKey.generate()
     receipt_public = receipt_key.public_key().public_bytes(
         serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
@@ -322,6 +323,9 @@ def create_broker_app(workflow, participant_token, reviewer_token, *, origin='ht
             raise HTTPException(409, 'finish audio before requesting confirmation')
         try:
             return workflow.request_confirmation(**body.model_dump())
+        except ChallengeRateLimited as error:
+            raise HTTPException(429, 'challenge issuance rate exceeded',
+                                headers={'Retry-After': str(error.retry_after)}) from None
         except ValueError:
             raise HTTPException(409, 'policy prevents confirmation') from None
 

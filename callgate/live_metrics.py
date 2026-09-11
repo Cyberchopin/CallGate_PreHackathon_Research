@@ -1,6 +1,9 @@
-"""Bounded in-memory demo measurements; no audio, transcript, or identifiers."""
+"""Bounded demo measurements, optionally durable; no content or identifiers."""
 import math
 import threading
+import sqlite3
+import json
+from contextlib import closing
 from collections import deque
 
 
@@ -12,12 +15,20 @@ def percentile(values, fraction):
 
 
 class LiveMetrics:
-    def __init__(self, capacity=100):
+    def __init__(self, capacity=100, *, database=None):
         if type(capacity) is not int or not 1 <= capacity <= 10_000:
             raise ValueError('invalid metrics capacity')
         self._rows = deque(maxlen=capacity)
         self._lock = threading.Lock()
         self._total = 0
+        self._database = database
+        if database is not None:
+            with closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE IF NOT EXISTS metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL)')
+                db.execute('DELETE FROM metrics WHERE id NOT IN (SELECT id FROM metrics ORDER BY id DESC LIMIT ?)', (capacity,))
+                self._rows.extend(json.loads(r[0]) for r in db.execute('SELECT value FROM metrics ORDER BY id'))
+                row = db.execute("SELECT seq FROM sqlite_sequence WHERE name='metrics'").fetchone()
+                self._total = row[0] if row else 0
 
     def record(self, *, audio_ms, first_alert_proxy_ms, risk_engine_ms,
                completed=None, outcome=None):
@@ -42,6 +53,11 @@ class LiveMetrics:
             'risk_engine_ms': number(risk_engine_ms, True),
         }
         with self._lock:
+            if self._database is not None:
+                # Commit before acknowledging the measurement. No content or credentials.
+                with closing(sqlite3.connect(self._database)) as db, db:
+                    db.execute('INSERT INTO metrics(value) VALUES (?)', (json.dumps(row),))
+                    db.execute('DELETE FROM metrics WHERE id NOT IN (SELECT id FROM metrics ORDER BY id DESC LIMIT ?)', (self._rows.maxlen,))
             self._rows.append(row)
             self._total += 1
 
@@ -73,7 +89,8 @@ class LiveMetrics:
             'alert_proxy_p95_ms': percentile(alerts, .95),
             'risk_engine_p50_ms': percentile(engines, .50),
             'risk_engine_p95_ms': percentile(engines, .95),
-            'scope': 'current_process_bounded_no_content',
+            'scope': ('persistent_bounded_no_content' if self._database is not None
+                      else 'current_process_bounded_no_content'),
         }
         return {'schema_version': 'callgate-live-metrics-v2', 'summary': summary, 'samples': rows,
                 'definitions': {

@@ -30,6 +30,20 @@ def bearer(token, **extra):
     return {"Authorization": f"Bearer {token}", **extra}
 
 
+def test_challenge_issuance_returns_429_and_retry_after(demo):
+    demo.broker.post('/api/transcript', json=SEGMENT, headers=bearer(PARTICIPANT_TOKEN))
+    for _ in range(5):
+        response = demo.broker.post('/api/request',
+            json={'destination': 'demo-wallet', 'amount_cents': 100},
+            headers=bearer(PARTICIPANT_TOKEN))
+        assert response.status_code == 200
+    response = demo.broker.post('/api/request',
+        json={'destination': 'demo-wallet', 'amount_cents': 100},
+        headers=bearer(PARTICIPANT_TOKEN))
+    assert response.status_code == 429
+    assert 1 <= int(response.headers['Retry-After']) <= 60
+
+
 @pytest.fixture
 def demo():
     issuer_key = Ed25519PrivateKey.generate()
